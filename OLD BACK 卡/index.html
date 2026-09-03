@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pokémon TCG 1996-1997 Quadlogy - Cloud Sync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Firebase SDK (Compat Version - 免建置工具即開即用) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --bg-main: #0b1120;
+      --bg-card: #1e293b;
+      --bg-panel: #131d31;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-psa: #e11d48;
+      --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: var(--text-main); line-height: 1.5; }
+
+    header {
+      background-color: #070d18;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-container {
+      max-width: 1560px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: #fff;
+      text-decoration: none;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      color: white;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 800;
+    }
+
+    .set-switcher {
+      display: flex;
+      background: #0f172a;
+      padding: 0.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      gap: 0.25rem;
+      flex-wrap: wrap;
+    }
+
+    .set-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.35rem 0.7rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .set-tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .stat-badge {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: var(--bg-card);
+      padding: 0.35rem 0.85rem;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+    }
+
+    .stat-badge strong { color: #38bdf8; }
+    .stat-badge.value-badge strong { color: var(--accent-green); }
+    .stat-badge.psa-total-badge strong { color: #fda4af; }
+
+    /* 雲端同步狀態徽章 */
+    .sync-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #6ee7b7;
+    }
+    .sync-badge.syncing {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: #fcd34d;
+    }
+    .sync-badge.offline {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .btn-psa {
+      background: rgba(225, 29, 72, 0.15);
+      border: 1px solid rgba(225, 29, 72, 0.4);
+      color: #fda4af;
+    }
+    .btn-psa:hover { background: var(--accent-psa); color: #fff; }
+
+    .btn-export {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+    .btn-export:hover { background: var(--accent-green); color: #fff; }
+
+    .app-layout {
+      max-width: 1560px;
+      margin: 1.5rem auto;
+      padding: 0 1.5rem;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 1.5rem;
+    }
+
+    .sidebar {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1.25rem;
+      height: fit-content;
+      position: sticky;
+      top: 5rem;
+    }
+
+    .set-meta-box {
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .set-meta-title { font-size: 1.15rem; font-weight: 700; color: #fff; }
+    .set-meta-sub { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.3rem; }
+
+    .sidebar-psa-card {
+      background: rgba(225, 29, 72, 0.08);
+      border: 1px solid rgba(225, 29, 72, 0.25);
+      border-radius: 8px;
+      padding: 0.85rem;
+      margin-top: 0.75rem;
+    }
+
+    .sidebar-psa-card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #fda4af;
+      margin-bottom: 0.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .sidebar-psa-card-desc { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.6rem; line-height: 1.4; }
+
+    .sidebar-psa-btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: var(--accent-psa);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.4rem;
+      border-radius: 5px;
+      text-decoration: none;
+    }
+
+    .filter-group { margin-bottom: 1.25rem; }
+    .filter-title { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.6rem; font-weight: 700; }
+    .filter-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+    .chip {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.3rem 0.65rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .chip.active, .chip:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    .controls-bar {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .search-input-wrap { position: relative; flex: 1; min-width: 220px; }
+    .search-input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 0.55rem 0.75rem 0.55rem 2.2rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .search-icon { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+
+    .control-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .currency-selector-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--bg-card);
+      border: 1px solid var(--accent);
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+    }
+    .currency-label { font-size: 0.75rem; font-weight: 700; color: #a5b4fc; }
+
+    .select-dropdown {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card-item {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--card-shadow);
+      transition: transform 0.2s, border-color 0.2s, background 0.3s;
+    }
+
+    .card-item:hover { transform: translateY(-4px); border-color: var(--accent); }
+
+    .card-img-container {
+      position: relative;
+      background: #000;
+      padding: 0.6rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      aspect-ratio: 2.5 / 3.5;
+      cursor: pointer;
+    }
+
+    .card-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 6px;
+      transition: filter 0.3s ease, opacity 0.3s ease;
+    }
+
+    .holo-glow {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0) 100%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    .card-item:hover .holo-glow { opacity: 1; }
+
+    .card-item.unowned { background: rgba(19, 29, 49, 0.45); border-color: rgba(51, 65, 85, 0.6); }
+    .card-item.unowned .card-img { opacity: 0.32; filter: grayscale(85%) contrast(0.85) brightness(0.9); }
+    .card-item.unowned .holo-glow { display: none; }
+
+    .card-info { padding: 0.75rem; display: flex; flex-direction: column; gap: 0.3rem; flex-grow: 1; }
+    .card-header-line { display: flex; justify-content: space-between; align-items: center; }
+
+    .card-set-badge { font-size: 0.68rem; font-weight: 700; padding: 0.1rem 0.35rem; border-radius: 3px; text-transform: uppercase; }
+    .badge-base { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .badge-jungle { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .badge-fossil { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4); }
+    .badge-rocket { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.4); }
+
+    .card-set-num { font-size: 0.85rem; font-weight: 800; color: #38bdf8; }
+    .card-pokedex-num { font-size: 0.72rem; color: var(--text-muted); }
+    .card-rarity { font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 700; }
+    .rarity-holo { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .rarity-uncommon { background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); }
+    .rarity-common { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
+
+    .card-title { font-weight: 600; font-size: 0.95rem; color: #fff; }
+    .card-title-jp { font-size: 0.8rem; color: var(--text-muted); }
+
+    .psa-10-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(225, 29, 72, 0.18);
+      border: 1px solid rgba(225, 29, 72, 0.4);
+      color: #fda4af;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+    }
+
+    .card-footer-line { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.06); }
+
+    .price-edit-wrap {
+      display: flex;
+      align-items: center;
+      background: var(--bg-card);
+      border: 1px dashed var(--border-color);
+      padding: 0.15rem 0.4rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .price-edit-wrap:hover { border-color: var(--accent-green); }
+    .currency-symbol-tag { font-size: 0.75rem; color: var(--text-muted); margin-right: 2px; }
+    .price-input { background: transparent; border: none; color: var(--accent-green); font-weight: 700; font-size: 0.85rem; width: 60px; outline: none; }
+
+    .collector-counter {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--bg-card);
+      border-radius: 6px;
+      padding: 0.15rem 0.35rem;
+      border: 1px solid var(--border-color);
+    }
+    .counter-btn { background: none; border: none; color: var(--text-muted); font-weight: bold; cursor: pointer; font-size: 0.85rem; padding: 0.1rem 0.3rem; }
+    .counter-btn:hover { color: #fff; }
+    .counter-val { font-size: 0.8rem; font-weight: 700; min-width: 14px; text-align: center; }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-content {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      max-width: 650px;
+      width: 100%;
+      padding: 1.75rem;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 1.5rem;
+      position: relative;
+    }
+    .close-modal-btn { position: absolute; top: 1rem; right: 1rem; background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; }
+
+    @media (max-width: 900px) {
+      .app-layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="nav-container">
+      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <a href="#" class="brand-logo">
+          <span class="brand-badge">TCG</span> Collector
+        </a>
+
+        <div class="set-switcher">
+          <button class="set-tab-btn active" onclick="switchSet('base')">🔴 第1弾 拡張パック</button>
+          <button class="set-tab-btn" onclick="switchSet('jungle')">🌿 ポケモンジャングル</button>
+          <button class="set-tab-btn" onclick="switchSet('fossil')">🦴 化石の秘密</button>
+          <button class="set-tab-btn" onclick="switchSet('rocket')">🚀 ロケット団</button>
+          <button class="set-tab-btn" onclick="switchSet('all')">🌐 全部 (263張)</button>
+        </div>
+      </div>
+      
+      <div class="header-actions">
+        <!-- 雲端同步狀態徽章 -->
+        <div id="syncStatusBadge" class="sync-badge">
+          🟢 雲端同步中
+        </div>
+
+        <div class="stat-badge">
+          已收集: <strong id="statsCollectedCount">0</strong> / <span id="statsTotalSetCards">102</span> 種
+        </div>
+        <div class="stat-badge psa-total-badge">
+          PSA 10 總量: <strong id="statsPsaTotal">25,123</strong> 張
+        </div>
+        <div class="stat-badge value-badge">
+          總估值: <strong id="statsTotalValue">HK$ 0.00</strong>
+        </div>
+        
+        <a id="topPsaBtn" href="https://www.psacard.com/pop/tcg-cards/1996/pokemon-japanese-basic/55428" target="_blank" rel="noopener noreferrer" class="btn-action btn-psa">
+          🏆 PSA Pop Report ↗
+        </a>
+
+        <button class="btn-action btn-export" onclick="exportToCSV()">
+          📥 匯出 CSV
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="set-meta-box">
+        <div class="set-meta-title" id="sideSetTitle">第1弾 拡張パック</div>
+        <div class="set-meta-sub" id="sideSetSub">Expansion Pack (Japanese Base Set)</div>
+        <div class="set-meta-sub" id="sideSetRelease">Release: October 20, 1996</div>
+
+        <div class="sidebar-psa-card">
+          <div class="sidebar-psa-card-title">
+            <span>🔴</span> PSA Population Report
+          </div>
+          <div class="sidebar-psa-card-desc" id="sidePsaDesc">
+            官方資料庫查驗 1996 年日版第1彈元祖卡牌評級存世量（全彈 25,123 張）。
+          </div>
+          <a id="sidePsaBtn" href="https://www.psacard.com/pop/tcg-cards/1996/pokemon-japanese-basic/55428" target="_blank" rel="noopener noreferrer" class="sidebar-psa-btn">
+            開啟 PSA 官方數據庫 ↗
+          </a>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-title">Type (屬性)</div>
+        <div class="filter-chips">
+          <button class="chip active" onclick="filterByType('all')">All</button>
+          <button class="chip" onclick="filterByType('Grass')">Grass</button>
+          <button class="chip" onclick="filterByType('Grass/Poison')">Grass/Poison</button>
+          <button class="chip" onclick="filterByType('Fire')">Fire</button>
+          <button class="chip" onclick="filterByType('Water')">Water</button>
+          <button class="chip" onclick="filterByType('Lightning')">Lightning</button>
+          <button class="chip" onclick="filterByType('Psychic')">Psychic</button>
+          <button class="chip" onclick="filterByType('Fighting')">Fighting</button>
+          <button class="chip" onclick="filterByType('Colorless')">Colorless</button>
+          <button class="chip" onclick="filterByType('Trainer')">Trainer</button>
+          <button class="chip" onclick="filterByType('Energy')">Energy</button>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-title">Rarity (稀有度)</div>
+        <div class="filter-chips">
+          <button class="chip active" onclick="filterByRarity('all')">All</button>
+          <button class="chip" onclick="filterByRarity('Holo Rare ★')">Holo ★</button>
+          <button class="chip" onclick="filterByRarity('Uncommon ◆')">Uncommon ◆</button>
+          <button class="chip" onclick="filterByRarity('Common ●')">Common ●</button>
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="controls-bar">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" class="search-input" placeholder="搜尋卡名、日文名或編號..." oninput="handleSearch(this.value)">
+        </div>
+
+        <div class="control-actions">
+          <div class="currency-selector-wrap">
+            <span class="currency-label">貨幣:</span>
+            <select class="select-dropdown" id="currencySelect" onchange="changeCurrency(this.value)" style="padding: 0.25rem 0.5rem; border: none; background: transparent; font-weight: 700; color: #fff;">
+              <option value="HKD">HKD (HK$)</option>
+              <option value="USD">USD ($)</option>
+            </select>
+          </div>
+
+          <select class="select-dropdown" id="sortSelect" onchange="handleSort(this.value)">
+            <option value="set-asc">編號: 正序</option>
+            <option value="set-desc">編號: 倒序</option>
+            <option value="psa10-asc">PSA 10 存量: 少 → 多</option>
+            <option value="psa10-desc">PSA 10 存量: 多 → 少</option>
+            <option value="count-desc">持有數量: 多 → 少</option>
+            <option value="price-desc">價錢: 高 → 低</option>
+            <option value="name-asc">名稱: A to Z</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="cards-grid" id="cardsGrid"></div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="cardModal" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <button class="close-modal-btn" onclick="closeModal()">&times;</button>
+      <div style="text-align: center;">
+        <img id="modalImg" src="" style="width: 100%; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.6);">
+      </div>
+      <div>
+        <h2 id="modalTitle" style="color: #fff; margin-bottom: 0.2rem;"></h2>
+        <p id="modalJpTitle" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 0.75rem;"></p>
+        <p><strong>Expansion:</strong> <span id="modalSet"></span></p>
+        <p><strong>Set Number:</strong> <span id="modalSetNum" style="color: #38bdf8; font-weight: bold;"></span></p>
+        <p><strong>Pokédex No:</strong> <span id="modalPokedex"></span></p>
+        <p><strong>Rarity:</strong> <span id="modalRarity"></span></p>
+        <p><strong>Type:</strong> <span id="modalType"></span></p>
+        <p style="margin-top: 0.4rem;">
+          <strong>PSA 10 Population:</strong> 
+          <span id="modalPsa10" style="color: #fda4af; font-weight: 800; background: rgba(225, 29, 72, 0.2); padding: 0.15rem 0.5rem; border-radius: 4px; border: 1px solid rgba(225,29,72,0.4);"></span> 張
+        </p>
+        <div style="margin-top: 1.25rem;">
+          <label style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">自訂市場價 (<span id="modalCurrencyLabel">HKD</span>):</label>
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.3rem;">
+            <span id="modalCurrencySymbol" style="font-size: 1.1rem; color: var(--text-muted); font-weight: bold;"></span>
+            <input type="number" step="any" min="0" id="modalPriceInput" class="price-input" style="font-size: 1.1rem; border: 1px solid var(--border-color); padding: 0.4rem 0.6rem; border-radius: 6px; width: 100%; background: var(--bg-card);" onchange="updateModalPrice(this.value)">
+          </div>
+          <small style="color: var(--text-muted); display: block; margin-top: 0.3rem;">* 匯率已鎖定 1 USD = 7.8 HKD 自動連動換算</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 你的專屬 Firebase 配置
+    const firebaseConfig = {
+      apiKey: "AIzaSyBbKZmJjv4nx-TNqorSW6Fwy63ywp-ooRE",
+      authDomain: "my-pokemon-tcg151.firebaseapp.com",
+      projectId: "my-pokemon-tcg151",
+      storageBucket: "my-pokemon-tcg151.firebasestorage.app",
+      messagingSenderId: "239207431896",
+      appId: "1:239207431896:web:678ed6999370e348db61ad",
+      measurementId: "G-SYDRHJSWMF"
+    };
+
+    let db = null;
+    let isCloudEnabled = false;
+
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+      isCloudEnabled = true;
+    } catch(e) {
+      console.warn("Firebase 連線初始化失敗，自動切換至本地儲存:", e);
+    }
+
+    const EXCHANGE_RATE = 7.8; // 1 USD = 7.8 HKD
+
+    const baseCardsData = [
+      { setId: "base", setNo: 1, pokedex: "#001", name: "Bulbasaur", jpName: "フシギダネ", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 749, priceHKD: 0, img: "https://images.pokemontcg.io/base1/44_hires.png", count: 0 },
+      { setId: "base", setNo: 2, pokedex: "#002", name: "Ivysaur", jpName: "フシギソウ", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 269, priceHKD: 0, img: "https://images.pokemontcg.io/base1/30_hires.png", count: 0 },
+      { setId: "base", setNo: 3, pokedex: "#003", name: "Venusaur-Holo", jpName: "フシギバナ", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 751, priceHKD: 0, img: "https://images.pokemontcg.io/base1/15_hires.png", count: 0 },
+      { setId: "base", setNo: 4, pokedex: "#010", name: "Caterpie", jpName: "キャタピー", type: "Grass", rarity: "Common ●", rarityClass: "rarity-common", psa10: 244, priceHKD: 0, img: "https://images.pokemontcg.io/base1/45_hires.png", count: 0 },
+      { setId: "base", setNo: 5, pokedex: "#011", name: "Metapod", jpName: "トランセル", type: "Grass", rarity: "Common ●", rarityClass: "rarity-common", psa10: 202, priceHKD: 0, img: "https://images.pokemontcg.io/base1/54_hires.png", count: 0 },
+      { setId: "base", setNo: 6, pokedex: "#013", name: "Weedle", jpName: "ビードル", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 200, priceHKD: 0, img: "https://images.pokemontcg.io/base1/69_hires.png", count: 0 },
+      { setId: "base", setNo: 7, pokedex: "#014", name: "Kakuna", jpName: "コクーン", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 79, priceHKD: 0, img: "https://images.pokemontcg.io/base1/33_hires.png", count: 0 },
+      { setId: "base", setNo: 8, pokedex: "#015", name: "Beedrill", jpName: "スピアー", type: "Grass/Poison", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 73, priceHKD: 0, img: "https://images.pokemontcg.io/base1/17_hires.png", count: 0 },
+      { setId: "base", setNo: 9, pokedex: "#032", name: "Nidoran♂", jpName: "ニドラン♂", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 218, priceHKD: 0, img: "https://images.pokemontcg.io/base1/55_hires.png", count: 0 },
+      { setId: "base", setNo: 10, pokedex: "#033", name: "Nidorino", jpName: "ニドリーノ", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 119, priceHKD: 0, img: "https://images.pokemontcg.io/base1/37_hires.png", count: 0 },
+      { setId: "base", setNo: 11, pokedex: "#034", name: "Nidoking-Holo", jpName: "ニドキング", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 411, priceHKD: 0, img: "https://images.pokemontcg.io/base1/11_hires.png", count: 0 },
+      { setId: "base", setNo: 12, pokedex: "#114", name: "Tangela", jpName: "モンジャラ", type: "Grass", rarity: "Common ●", rarityClass: "rarity-common", psa10: 216, priceHKD: 0, img: "https://images.pokemontcg.io/base1/66_hires.png", count: 0 },
+      { setId: "base", setNo: 13, pokedex: "#109", name: "Koffing", jpName: "ドガース", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 234, priceHKD: 0, img: "https://images.pokemontcg.io/base1/51_hires.png", count: 0 },
+      { setId: "base", setNo: 14, pokedex: "#004", name: "Charmander", jpName: "ヒトカゲ", type: "Fire", rarity: "Common ●", rarityClass: "rarity-common", psa10: 847, priceHKD: 0, img: "https://images.pokemontcg.io/base1/46_hires.png", count: 0 },
+      { setId: "base", setNo: 15, pokedex: "#005", name: "Charmeleon", jpName: "リザード", type: "Fire", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 280, priceHKD: 0, img: "https://images.pokemontcg.io/base1/24_hires.png", count: 0 },
+      { setId: "base", setNo: 16, pokedex: "#006", name: "Charizard-Holo", jpName: "リザードン", type: "Fire", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 999, priceHKD: 0, img: "https://images.pokemontcg.io/base1/4_hires.png", count: 0 },
+      { setId: "base", setNo: 17, pokedex: "#037", name: "Vulpix", jpName: "ロコン", type: "Fire", rarity: "Common ●", rarityClass: "rarity-common", psa10: 267, priceHKD: 0, img: "https://images.pokemontcg.io/base1/68_hires.png", count: 0 },
+      { setId: "base", setNo: 18, pokedex: "#038", name: "Ninetales-Holo", jpName: "キュウコン", type: "Fire", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 570, priceHKD: 0, img: "https://images.pokemontcg.io/base1/12_hires.png", count: 0 },
+      { setId: "base", setNo: 19, pokedex: "#058", name: "Growlithe", jpName: "ガーディ", type: "Fire", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 125, priceHKD: 0, img: "https://images.pokemontcg.io/base1/28_hires.png", count: 0 },
+      { setId: "base", setNo: 20, pokedex: "#059", name: "Arcanine", jpName: "ウインディ", type: "Fire", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 199, priceHKD: 0, img: "https://images.pokemontcg.io/base1/23_hires.png", count: 0 },
+      { setId: "base", setNo: 21, pokedex: "#077", name: "Ponyta", jpName: "ポニータ", type: "Fire", rarity: "Common ●", rarityClass: "rarity-common", psa10: 225, priceHKD: 0, img: "https://images.pokemontcg.io/base1/60_hires.png", count: 0 },
+      { setId: "base", setNo: 22, pokedex: "#126", name: "Magmar", jpName: "ブーバー", type: "Fire", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 118, priceHKD: 0, img: "https://images.pokemontcg.io/base1/36_hires.png", count: 0 },
+      { setId: "base", setNo: 23, pokedex: "#007", name: "Squirtle", jpName: "ゼニガメ", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 848, priceHKD: 0, img: "https://images.pokemontcg.io/base1/63_hires.png", count: 0 },
+      { setId: "base", setNo: 24, pokedex: "#008", name: "Wartortle", jpName: "カメール", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 288, priceHKD: 0, img: "https://images.pokemontcg.io/base1/42_hires.png", count: 0 },
+      { setId: "base", setNo: 25, pokedex: "#009", name: "Blastoise-Holo", jpName: "カメックス", type: "Water", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 732, priceHKD: 0, img: "https://images.pokemontcg.io/base1/2_hires.png", count: 0 },
+      { setId: "base", setNo: 26, pokedex: "#060", name: "Poliwag", jpName: "ニョロモ", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 230, priceHKD: 0, img: "https://images.pokemontcg.io/base1/59_hires.png", count: 0 },
+      { setId: "base", setNo: 27, pokedex: "#061", name: "Poliwhirl", jpName: "ニョロゾ", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 109, priceHKD: 0, img: "https://images.pokemontcg.io/base1/38_hires.png", count: 0 },
+      { setId: "base", setNo: 28, pokedex: "#062", name: "Poliwrath-Holo", jpName: "ニョロボン", type: "Water", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 483, priceHKD: 0, img: "https://images.pokemontcg.io/base1/13_hires.png", count: 0 },
+      { setId: "base", setNo: 29, pokedex: "#086", name: "Seel", jpName: "パウワウ", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 109, priceHKD: 0, img: "https://images.pokemontcg.io/base1/41_hires.png", count: 0 },
+      { setId: "base", setNo: 30, pokedex: "#087", name: "Dewgong", jpName: "ジュゴン", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 114, priceHKD: 0, img: "https://images.pokemontcg.io/base1/25_hires.png", count: 0 },
+      { setId: "base", setNo: 31, pokedex: "#120", name: "Staryu", jpName: "ヒトデマン", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 207, priceHKD: 0, img: "https://images.pokemontcg.io/base1/65_hires.png", count: 0 },
+      { setId: "base", setNo: 32, pokedex: "#121", name: "Starmie", jpName: "スターミー", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 226, priceHKD: 0, img: "https://images.pokemontcg.io/base1/64_hires.png", count: 0 },
+      { setId: "base", setNo: 33, pokedex: "#129", name: "Magikarp", jpName: "コイキング", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 210, priceHKD: 0, img: "https://images.pokemontcg.io/base1/35_hires.png", count: 0 },
+      { setId: "base", setNo: 34, pokedex: "#130", name: "Gyarados-Holo", jpName: "ギャラドス", type: "Water", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 614, priceHKD: 0, img: "https://images.pokemontcg.io/base1/6_hires.png", count: 0 },
+      { setId: "base", setNo: 35, pokedex: "#025", name: "Pikachu", jpName: "ピカチュウ", type: "Lightning", rarity: "Common ●", rarityClass: "rarity-common", psa10: 1143, priceHKD: 0, img: "https://images.pokemontcg.io/base1/58_hires.png", count: 0 },
+      { setId: "base", setNo: 36, pokedex: "#026", name: "Raichu-Holo", jpName: "ライチュウ", type: "Lightning", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 528, priceHKD: 0, img: "https://images.pokemontcg.io/base1/14_hires.png", count: 0 },
+      { setId: "base", setNo: 37, pokedex: "#081", name: "Magnemite", jpName: "コイル", type: "Lightning", rarity: "Common ●", rarityClass: "rarity-common", psa10: 205, priceHKD: 0, img: "https://images.pokemontcg.io/base1/53_hires.png", count: 0 },
+      { setId: "base", setNo: 38, pokedex: "#082", name: "Magneton-Holo", jpName: "レアコイル", type: "Lightning", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 333, priceHKD: 0, img: "https://images.pokemontcg.io/base1/9_hires.png", count: 0 },
+      { setId: "base", setNo: 39, pokedex: "#100", name: "Voltorb", jpName: "ビリリダマ", type: "Lightning", rarity: "Common ●", rarityClass: "rarity-common", psa10: 220, priceHKD: 0, img: "https://images.pokemontcg.io/base1/67_hires.png", count: 0 },
+      { setId: "base", setNo: 40, pokedex: "#101", name: "Electrode", jpName: "マルマイン", type: "Lightning", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 66, priceHKD: 0, img: "https://images.pokemontcg.io/base1/21_hires.png", count: 0 },
+      { setId: "base", setNo: 41, pokedex: "#125", name: "Electabuzz", jpName: "エレブー", type: "Lightning", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 67, priceHKD: 0, img: "https://images.pokemontcg.io/base1/20_hires.png", count: 0 },
+      { setId: "base", setNo: 42, pokedex: "#145", name: "Zapdos-Holo", jpName: "サンダー", type: "Lightning", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 602, priceHKD: 0, img: "https://images.pokemontcg.io/base1/16_hires.png", count: 0 },
+      { setId: "base", setNo: 43, pokedex: "#063", name: "Abra", jpName: "ケーシィ", type: "Psychic", rarity: "Common ●", rarityClass: "rarity-common", psa10: 282, priceHKD: 0, img: "https://images.pokemontcg.io/base1/43_hires.png", count: 0 },
+      { setId: "base", setNo: 44, pokedex: "#064", name: "Kadabra", jpName: "ユンゲラー", type: "Psychic", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 136, priceHKD: 0, img: "https://images.pokemontcg.io/base1/32_hires.png", count: 0 },
+      { setId: "base", setNo: 45, pokedex: "#065", name: "Alakazam-Holo", jpName: "フーディン", type: "Psychic", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 617, priceHKD: 0, img: "https://images.pokemontcg.io/base1/1_hires.png", count: 0 },
+      { setId: "base", setNo: 46, pokedex: "#092", name: "Gastly", jpName: "ゴース", type: "Psychic", rarity: "Common ●", rarityClass: "rarity-common", psa10: 273, priceHKD: 0, img: "https://images.pokemontcg.io/base1/50_hires.png", count: 0 },
+      { setId: "base", setNo: 47, pokedex: "#093", name: "Haunter", jpName: "ゴースト", type: "Psychic", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 111, priceHKD: 0, img: "https://images.pokemontcg.io/base1/29_hires.png", count: 0 },
+      { setId: "base", setNo: 48, pokedex: "#096", name: "Drowzee", jpName: "スリープ", type: "Psychic", rarity: "Common ●", rarityClass: "rarity-common", psa10: 194, priceHKD: 0, img: "https://images.pokemontcg.io/base1/49_hires.png", count: 0 },
+      { setId: "base", setNo: 49, pokedex: "#124", name: "Jynx", jpName: "ルージュラ", type: "Psychic", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 174, priceHKD: 0, img: "https://images.pokemontcg.io/base1/31_hires.png", count: 0 },
+      { setId: "base", setNo: 50, pokedex: "#150", name: "Mewtwo-Holo", jpName: "ミュウツー", type: "Psychic", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 770, priceHKD: 0, img: "https://images.pokemontcg.io/base1/10_hires.png", count: 0 },
+      { setId: "base", setNo: 51, pokedex: "#027", name: "Sandshrew", jpName: "サンド", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 195, priceHKD: 0, img: "https://images.pokemontcg.io/base1/62_hires.png", count: 0 },
+      { setId: "base", setNo: 52, pokedex: "#050", name: "Diglett", jpName: "ディグダ", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 211, priceHKD: 0, img: "https://images.pokemontcg.io/base1/47_hires.png", count: 0 },
+      { setId: "base", setNo: 53, pokedex: "#051", name: "Dugtrio", jpName: "ダグトリオ", type: "Fighting", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 62, priceHKD: 0, img: "https://images.pokemontcg.io/base1/19_hires.png", count: 0 },
+      { setId: "base", setNo: 54, pokedex: "#066", name: "Machop", jpName: "ワンリキー", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 236, priceHKD: 0, img: "https://images.pokemontcg.io/base1/52_hires.png", count: 0 },
+      { setId: "base", setNo: 55, pokedex: "#067", name: "Machoke", jpName: "ゴーリキー", type: "Fighting", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 103, priceHKD: 0, img: "https://images.pokemontcg.io/base1/34_hires.png", count: 0 },
+      { setId: "base", setNo: 56, pokedex: "#068", name: "Machamp-Holo", jpName: "カイリキー", type: "Fighting", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 463, priceHKD: 0, img: "https://images.pokemontcg.io/base1/8_hires.png", count: 0 },
+      { setId: "base", setNo: 57, pokedex: "#107", name: "Hitmonchan-Holo", jpName: "エビワラー", type: "Fighting", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 324, priceHKD: 0, img: "https://images.pokemontcg.io/base1/7_hires.png", count: 0 },
+      { setId: "base", setNo: 58, pokedex: "#095", name: "Onix", jpName: "イワーク", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 254, priceHKD: 0, img: "https://images.pokemontcg.io/base1/56_hires.png", count: 0 },
+      { setId: "base", setNo: 59, pokedex: "#016", name: "Pidgey", jpName: "ポッポ", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 206, priceHKD: 0, img: "https://images.pokemontcg.io/base1/57_hires.png", count: 0 },
+      { setId: "base", setNo: 60, pokedex: "#017", name: "Pidgeotto", jpName: "ピジョン", type: "Colorless", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 59, priceHKD: 0, img: "https://images.pokemontcg.io/base1/22_hires.png", count: 0 },
+      { setId: "base", setNo: 61, pokedex: "#019", name: "Rattata", jpName: "コラッタ", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 179, priceHKD: 0, img: "https://images.pokemontcg.io/base1/61_hires.png", count: 0 },
+      { setId: "base", setNo: 62, pokedex: "#020", name: "Raticate", jpName: "ラッタ", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 105, priceHKD: 0, img: "https://images.pokemontcg.io/base1/40_hires.png", count: 0 },
+      { setId: "base", setNo: 63, pokedex: "#021", name: "Spearow", jpName: "オニスズメ", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 0, priceHKD: 0, img: "https://images.pokemontcg.io/base1/62_hires.png", count: 0 },
+      { setId: "base", setNo: 64, pokedex: "#035", name: "Clefairy-Holo", jpName: "ピッピ", type: "Colorless", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 362, priceHKD: 0, img: "https://images.pokemontcg.io/base1/5_hires.png", count: 0 },
+      { setId: "base", setNo: 65, pokedex: "#039", name: "Jigglypuff", jpName: "プリン", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 115, priceHKD: 0, img: "https://images.pokemontcg.io/base1/54_hires.png", count: 0 },
+      { setId: "base", setNo: 66, pokedex: "#084", name: "Doduo", jpName: "ドードー", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 196, priceHKD: 0, img: "https://images.pokemontcg.io/base1/48_hires.png", count: 0 },
+      { setId: "base", setNo: 67, pokedex: "#113", name: "Chansey-Holo", jpName: "ラッキー", type: "Colorless", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 307, priceHKD: 0, img: "https://images.pokemontcg.io/base1/3_hires.png", count: 0 },
+      { setId: "base", setNo: 68, pokedex: "#083", name: "Farfetch'd", jpName: "カモネギ", type: "Colorless", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 99, priceHKD: 0, img: "https://images.pokemontcg.io/base1/27_hires.png", count: 0 },
+      { setId: "base", setNo: 69, pokedex: "#147", name: "Dratini", jpName: "ミニリュウ", type: "Colorless", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 136, priceHKD: 0, img: "https://images.pokemontcg.io/base1/26_hires.png", count: 0 },
+      { setId: "base", setNo: 70, pokedex: "#148", name: "Dragonair", jpName: "ハクリュー", type: "Colorless", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 99, priceHKD: 0, img: "https://images.pokemontcg.io/base1/18_hires.png", count: 0 },
+      { setId: "base", setNo: 71, pokedex: "#137", name: "Porygon", jpName: "ポリゴン", type: "Colorless", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 82, priceHKD: 0, img: "https://images.pokemontcg.io/base1/39_hires.png", count: 0 },
+      { setId: "base", setNo: 72, pokedex: "N/A", name: "Professor Oak", jpName: "オーキドはかせ", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 113, priceHKD: 0, img: "https://images.pokemontcg.io/base1/88_hires.png", count: 0 },
+      { setId: "base", setNo: 73, pokedex: "N/A", name: "Imposter Professor Oak", jpName: "にせオーキドはかせ", type: "Trainer", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 58, priceHKD: 0, img: "https://images.pokemontcg.io/base1/73_hires.png", count: 0 },
+      { setId: "base", setNo: 74, pokedex: "N/A", name: "Bill", jpName: "マサキ", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 191, priceHKD: 0, img: "https://images.pokemontcg.io/base1/91_hires.png", count: 0 },
+      { setId: "base", setNo: 75, pokedex: "N/A", name: "Energy Removal", jpName: "エネルギー・リムーブ", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 176, priceHKD: 0, img: "https://images.pokemontcg.io/base1/92_hires.png", count: 0 },
+      { setId: "base", setNo: 76, pokedex: "N/A", name: "Super Energy Removal", jpName: "超エネルギーリムーブ", type: "Trainer", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 36, priceHKD: 0, img: "https://images.pokemontcg.io/base1/79_hires.png", count: 0 },
+      { setId: "base", setNo: 77, pokedex: "N/A", name: "Energy Retrieval", jpName: "エネルギー回収", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 60, priceHKD: 0, img: "https://images.pokemontcg.io/base1/81_hires.png", count: 0 },
+      { setId: "base", setNo: 78, pokedex: "N/A", name: "Gust of Wind", jpName: "突風", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 159, priceHKD: 0, img: "https://images.pokemontcg.io/base1/93_hires.png", count: 0 },
+      { setId: "base", setNo: 79, pokedex: "N/A", name: "Switch", jpName: "ポケモンいれかえ", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 142, priceHKD: 0, img: "https://images.pokemontcg.io/base1/95_hires.png", count: 0 },
+      { setId: "base", setNo: 80, pokedex: "N/A", name: "Pokémon Trader", jpName: "ポケモン交換おじさん", type: "Trainer", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 60, priceHKD: 0, img: "https://images.pokemontcg.io/base1/77_hires.png", count: 0 },
+      { setId: "base", setNo: 81, pokedex: "N/A", name: "Pokémon Breeder", jpName: "ポケモン育て屋さん", type: "Trainer", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 42, priceHKD: 0, img: "https://images.pokemontcg.io/base1/76_hires.png", count: 0 },
+      { setId: "base", setNo: 82, pokedex: "N/A", name: "Item Finder", jpName: "ダウジングマシーン", type: "Trainer", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 34, priceHKD: 0, img: "https://images.pokemontcg.io/base1/74_hires.png", count: 0 },
+      { setId: "base", setNo: 83, pokedex: "N/A", name: "Computer Search", jpName: "パソコン大通信", type: "Trainer", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 31, priceHKD: 0, img: "https://images.pokemontcg.io/base1/71_hires.png", count: 0 },
+      { setId: "base", setNo: 84, pokedex: "N/A", name: "Devolution Spray", jpName: "退化スプレー", type: "Trainer", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 29, priceHKD: 0, img: "https://images.pokemontcg.io/base1/72_hires.png", count: 0 },
+      { setId: "base", setNo: 85, pokedex: "N/A", name: "Scoop Up", jpName: "ポケモン回収", type: "Trainer", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 39, priceHKD: 0, img: "https://images.pokemontcg.io/base1/78_hires.png", count: 0 },
+      { setId: "base", setNo: 86, pokedex: "N/A", name: "Defender", jpName: "ディフェンダー", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 80, priceHKD: 0, img: "https://images.pokemontcg.io/base1/80_hires.png", count: 0 },
+      { setId: "base", setNo: 87, pokedex: "N/A", name: "PlusPower", jpName: "プラスパワー", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 66, priceHKD: 0, img: "https://images.pokemontcg.io/base1/84_hires.png", count: 0 },
+      { setId: "base", setNo: 88, pokedex: "N/A", name: "Maintenance", jpName: "メンテナンス", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 71, priceHKD: 0, img: "https://images.pokemontcg.io/base1/83_hires.png", count: 0 },
+      { setId: "base", setNo: 89, pokedex: "N/A", name: "Full Heal", jpName: "なんでもなおし", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 68, priceHKD: 0, img: "https://images.pokemontcg.io/base1/82_hires.png", count: 0 },
+      { setId: "base", setNo: 90, pokedex: "N/A", name: "Potion", jpName: "きずぐすり", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 132, priceHKD: 0, img: "https://images.pokemontcg.io/base1/94_hires.png", count: 0 },
+      { setId: "base", setNo: 91, pokedex: "N/A", name: "Super Potion", jpName: "いいきずぐすり", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 64, priceHKD: 0, img: "https://images.pokemontcg.io/base1/90_hires.png", count: 0 },
+      { setId: "base", setNo: 92, pokedex: "N/A", name: "Revive", jpName: "げんきのかけら", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 73, priceHKD: 0, img: "https://images.pokemontcg.io/base1/89_hires.png", count: 0 },
+      { setId: "base", setNo: 93, pokedex: "N/A", name: "Pokédex", jpName: "ポケモン図鑑", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 97, priceHKD: 0, img: "https://images.pokemontcg.io/base1/87_hires.png", count: 0 },
+      { setId: "base", setNo: 94, pokedex: "N/A", name: "Clefairy Doll", jpName: "ピッピ人形", type: "Trainer", rarity: "Rare", rarityClass: "rarity-uncommon", psa10: 58, priceHKD: 0, img: "https://images.pokemontcg.io/base1/70_hires.png", count: 0 },
+      { setId: "base", setNo: 95, pokedex: "N/A", name: "Lass", jpName: "ミニスカート", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 67, priceHKD: 0, img: "https://images.pokemontcg.io/base1/75_hires.png", count: 0 },
+      { setId: "base", setNo: 96, pokedex: "N/A", name: "Pokémon Center", jpName: "ポケモンセンター", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 77, priceHKD: 0, img: "https://images.pokemontcg.io/base1/85_hires.png", count: 0 },
+      { setId: "base", setNo: 97, pokedex: "N/A", name: "Pokémon Flute", jpName: "ポケモンの笛", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 84, priceHKD: 0, img: "https://images.pokemontcg.io/base1/86_hires.png", count: 0 },
+      { setId: "base", setNo: 98, pokedex: "N/A", name: "Double Colorless Energy", jpName: "無色2個エネルギー", type: "Energy", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 63, priceHKD: 0, img: "https://images.pokemontcg.io/base1/96_hires.png", count: 0 },
+      { setId: "base", setNo: 99, pokedex: "N/A", name: "Fighting Energy", jpName: "闘エネルギー", type: "Energy", rarity: "Common ●", rarityClass: "rarity-common", psa10: 102, priceHKD: 0, img: "https://images.pokemontcg.io/base1/97_hires.png", count: 0 },
+      { setId: "base", setNo: 100, pokedex: "N/A", name: "Fire Energy", jpName: "炎エネルギー", type: "Energy", rarity: "Common ●", rarityClass: "rarity-common", psa10: 143, priceHKD: 0, img: "https://images.pokemontcg.io/base1/98_hires.png", count: 0 },
+      { setId: "base", setNo: 101, pokedex: "N/A", name: "Grass Energy", jpName: "草エネルギー", type: "Energy", rarity: "Common ●", rarityClass: "rarity-common", psa10: 107, priceHKD: 0, img: "https://images.pokemontcg.io/base1/99_hires.png", count: 0 },
+      { setId: "base", setNo: 102, pokedex: "N/A", name: "Lightning Energy", jpName: "雷エネルギー", type: "Energy", rarity: "Common ●", rarityClass: "rarity-common", psa10: 136, priceHKD: 0, img: "https://images.pokemontcg.io/base1/100_hires.png", count: 0 }
+    ];
+
+    // 1997 日版《ポケモンジャングル (Pokémon Jungle)》48 張卡牌
+    const jungleCardsData = [
+      { setId: "jungle", setNo: 1, pokedex: "#012", name: "Butterfree", jpName: "バタフリー", type: "Grass", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 48, priceHKD: 0, img: "https://images.pokemontcg.io/base2/33_hires.png", count: 0 },
+      { setId: "jungle", setNo: 2, pokedex: "#029", name: "Nidoran♀", jpName: "ニドラン♀", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 82, priceHKD: 0, img: "https://images.pokemontcg.io/base2/57_hires.png", count: 0 },
+      { setId: "jungle", setNo: 3, pokedex: "#030", name: "Nidorina", jpName: "ニドリーナ", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 26, priceHKD: 0, img: "https://images.pokemontcg.io/base2/40_hires.png", count: 0 },
+      { setId: "jungle", setNo: 4, pokedex: "#031", name: "Nidoqueen-Holo", jpName: "ニドクイン", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 432, priceHKD: 0, img: "https://images.pokemontcg.io/base2/7_hires.png", count: 0 },
+      { setId: "jungle", setNo: 5, pokedex: "#043", name: "Oddish", jpName: "ナゾノクサ", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 62, priceHKD: 0, img: "https://images.pokemontcg.io/base2/58_hires.png", count: 0 },
+      { setId: "jungle", setNo: 6, pokedex: "#044", name: "Gloom", jpName: "クサイハナ", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 24, priceHKD: 0, img: "https://images.pokemontcg.io/base2/37_hires.png", count: 0 },
+      { setId: "jungle", setNo: 7, pokedex: "#045", name: "Vileplume-Holo", jpName: "ラフレシア", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 305, priceHKD: 0, img: "https://images.pokemontcg.io/base2/15_hires.png", count: 0 },
+      { setId: "jungle", setNo: 8, pokedex: "#046", name: "Paras", jpName: "パラス", type: "Grass", rarity: "Common ●", rarityClass: "rarity-common", psa10: 50, priceHKD: 0, img: "https://images.pokemontcg.io/base2/59_hires.png", count: 0 },
+      { setId: "jungle", setNo: 9, pokedex: "#047", name: "Parasect", jpName: "パラセクト", type: "Grass", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 20, priceHKD: 0, img: "https://images.pokemontcg.io/base2/41_hires.png", count: 0 },
+      { setId: "jungle", setNo: 10, pokedex: "#048", name: "Venonat", jpName: "コンパン", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 52, priceHKD: 0, img: "https://images.pokemontcg.io/base2/63_hires.png", count: 0 },
+      { setId: "jungle", setNo: 11, pokedex: "#049", name: "Venomoth-Holo", jpName: "モルフォン", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 280, priceHKD: 0, img: "https://images.pokemontcg.io/base2/13_hires.png", count: 0 },
+      { setId: "jungle", setNo: 12, pokedex: "#069", name: "Bellsprout", jpName: "マダツボミ", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 70, priceHKD: 0, img: "https://images.pokemontcg.io/base2/49_hires.png", count: 0 },
+      { setId: "jungle", setNo: 13, pokedex: "#070", name: "Weepinbell", jpName: "ウツドン", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 31, priceHKD: 0, img: "https://images.pokemontcg.io/base2/48_hires.png", count: 0 },
+      { setId: "jungle", setNo: 14, pokedex: "#071", name: "Victreebel-Holo", jpName: "ウツボット", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 353, priceHKD: 0, img: "https://images.pokemontcg.io/base2/14_hires.png", count: 0 },
+      { setId: "jungle", setNo: 15, pokedex: "#102", name: "Exeggcute", jpName: "タマタマ", type: "Grass", rarity: "Common ●", rarityClass: "rarity-common", psa10: 55, priceHKD: 0, img: "https://images.pokemontcg.io/base2/52_hires.png", count: 0 },
+      { setId: "jungle", setNo: 16, pokedex: "#103", name: "Exeggutor", jpName: "ナッシー", type: "Grass", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 36, priceHKD: 0, img: "https://images.pokemontcg.io/base2/35_hires.png", count: 0 },
+      { setId: "jungle", setNo: 17, pokedex: "#123", name: "Scyther-Holo", jpName: "ストライク", type: "Grass", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 452, priceHKD: 0, img: "https://images.pokemontcg.io/base2/10_hires.png", count: 0 },
+      { setId: "jungle", setNo: 18, pokedex: "#127", name: "Pinsir-Holo", jpName: "カイロス", type: "Grass", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 329, priceHKD: 0, img: "https://images.pokemontcg.io/base2/9_hires.png", count: 0 },
+      { setId: "jungle", setNo: 19, pokedex: "#078", name: "Rapidash", jpName: "ギャロップ", type: "Fire", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 34, priceHKD: 0, img: "https://images.pokemontcg.io/base2/44_hires.png", count: 0 },
+      { setId: "jungle", setNo: 20, pokedex: "#136", name: "Flareon-Holo", jpName: "ブースター", type: "Fire", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 699, priceHKD: 0, img: "https://images.pokemontcg.io/base2/3_hires.png", count: 0 },
+      { setId: "jungle", setNo: 21, pokedex: "#118", name: "Goldeen", jpName: "トサキント", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 76, priceHKD: 0, img: "https://images.pokemontcg.io/base2/53_hires.png", count: 0 },
+      { setId: "jungle", setNo: 22, pokedex: "#119", name: "Seaking", jpName: "アズマオウ", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 32, priceHKD: 0, img: "https://images.pokemontcg.io/base2/46_hires.png", count: 0 },
+      { setId: "jungle", setNo: 23, pokedex: "#134", name: "Vaporeon-Holo", jpName: "シャワーズ", type: "Water", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 432, priceHKD: 0, img: "https://images.pokemontcg.io/base2/12_hires.png", count: 0 },
+      { setId: "jungle", setNo: 24, pokedex: "#025", name: "Pikachu", jpName: "ピカチュウ", type: "Lightning", rarity: "Common ●", rarityClass: "rarity-common", psa10: 750, priceHKD: 0, img: "https://images.pokemontcg.io/base2/60_hires.png", count: 0 },
+      { setId: "jungle", setNo: 25, pokedex: "#101", name: "Electrode-Holo", jpName: "マルマイン", type: "Lightning", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 458, priceHKD: 0, img: "https://images.pokemontcg.io/base2/2_hires.png", count: 0 },
+      { setId: "jungle", setNo: 26, pokedex: "#135", name: "Jolteon-Holo", jpName: "サンダース", type: "Lightning", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 757, priceHKD: 0, img: "https://images.pokemontcg.io/base2/4_hires.png", count: 0 },
+      { setId: "jungle", setNo: 27, pokedex: "#122", name: "Mr. Mime-Holo", jpName: "バリヤード", type: "Psychic", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 409, priceHKD: 0, img: "https://images.pokemontcg.io/base2/6_hires.png", count: 0 },
+      { setId: "jungle", setNo: 28, pokedex: "#056", name: "Mankey", jpName: "マンキー", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 76, priceHKD: 0, img: "https://images.pokemontcg.io/base2/55_hires.png", count: 0 },
+      { setId: "jungle", setNo: 29, pokedex: "#057", name: "Primeape", jpName: "オコリザル", type: "Fighting", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 43, priceHKD: 0, img: "https://images.pokemontcg.io/base2/43_hires.png", count: 0 },
+      { setId: "jungle", setNo: 30, pokedex: "#104", name: "Cubone", jpName: "カラカラ", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 132, priceHKD: 0, img: "https://images.pokemontcg.io/base2/50_hires.png", count: 0 },
+      { setId: "jungle", setNo: 31, pokedex: "#105", name: "Marowak", jpName: "ガラガラ", type: "Fighting", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 48, priceHKD: 0, img: "https://images.pokemontcg.io/base2/39_hires.png", count: 0 },
+      { setId: "jungle", setNo: 32, pokedex: "#111", name: "Rhyhorn", jpName: "サイホーン", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 80, priceHKD: 0, img: "https://images.pokemontcg.io/base2/61_hires.png", count: 0 },
+      { setId: "jungle", setNo: 33, pokedex: "#112", name: "Rhydon", jpName: "サイドン", type: "Fighting", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 41, priceHKD: 0, img: "https://images.pokemontcg.io/base2/45_hires.png", count: 0 },
+      { setId: "jungle", setNo: 34, pokedex: "#018", name: "Pidgeot-Holo", jpName: "ピジョット", type: "Colorless", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 384, priceHKD: 0, img: "https://images.pokemontcg.io/base2/8_hires.png", count: 0 },
+      { setId: "jungle", setNo: 35, pokedex: "#021", name: "Spearow", jpName: "オニスズメ", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 82, priceHKD: 0, img: "https://images.pokemontcg.io/base2/62_hires.png", count: 0 },
+      { setId: "jungle", setNo: 36, pokedex: "#022", name: "Fearow", jpName: "オニドリル", type: "Colorless", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 32, priceHKD: 0, img: "https://images.pokemontcg.io/base2/36_hires.png", count: 0 },
+      { setId: "jungle", setNo: 37, pokedex: "#036", name: "Clefable-Holo", jpName: "ピッピ", type: "Colorless", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 309, priceHKD: 0, img: "https://images.pokemontcg.io/base2/1_hires.png", count: 0 },
+      { setId: "jungle", setNo: 38, pokedex: "#039", name: "Jigglypuff", jpName: "プリン", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 115, priceHKD: 0, img: "https://images.pokemontcg.io/base2/54_hires.png", count: 0 },
+      { setId: "jungle", setNo: 39, pokedex: "#040", name: "Wigglytuff-Holo", jpName: "プクリン", type: "Colorless", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 264, priceHKD: 0, img: "https://images.pokemontcg.io/base2/16_hires.png", count: 0 },
+      { setId: "jungle", setNo: 40, pokedex: "#052", name: "Meowth", jpName: "ニャース", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 135, priceHKD: 0, img: "https://images.pokemontcg.io/base2/56_hires.png", count: 0 },
+      { setId: "jungle", setNo: 41, pokedex: "#053", name: "Persian", jpName: "ペルシアン", type: "Colorless", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 48, priceHKD: 0, img: "https://images.pokemontcg.io/base2/42_hires.png", count: 0 },
+      { setId: "jungle", setNo: 42, pokedex: "#085", name: "Dodrio", jpName: "ドードリオ", type: "Colorless", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 32, priceHKD: 0, img: "https://images.pokemontcg.io/base2/34_hires.png", count: 0 },
+      { setId: "jungle", setNo: 43, pokedex: "#108", name: "Lickitung", jpName: "ベロリンガ", type: "Colorless", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 36, priceHKD: 0, img: "https://images.pokemontcg.io/base2/38_hires.png", count: 0 },
+      { setId: "jungle", setNo: 44, pokedex: "#115", name: "Kangaskhan-Holo", jpName: "ガルーラ", type: "Colorless", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 298, priceHKD: 0, img: "https://images.pokemontcg.io/base2/5_hires.png", count: 0 },
+      { setId: "jungle", setNo: 45, pokedex: "#128", name: "Tauros", jpName: "ケンタロス", type: "Colorless", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 31, priceHKD: 0, img: "https://images.pokemontcg.io/base2/47_hires.png", count: 0 },
+      { setId: "jungle", setNo: 46, pokedex: "#133", name: "Eevee", jpName: "イーブイ", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 328, priceHKD: 0, img: "https://images.pokemontcg.io/base2/51_hires.png", count: 0 },
+      { setId: "jungle", setNo: 47, pokedex: "#143", name: "Snorlax-Holo", jpName: "カビゴン", type: "Colorless", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 492, priceHKD: 0, img: "https://images.pokemontcg.io/base2/11_hires.png", count: 0 },
+      { setId: "jungle", setNo: 48, pokedex: "N/A", name: "Poké Ball", jpName: "モンスターボール", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 59, priceHKD: 0, img: "https://images.pokemontcg.io/base2/64_hires.png", count: 0 }
+    ];
+
+    // 1997 日版《化石の秘密 (Mystery of the Fossils)》48 張卡牌
+    const fossilCardsData = [
+      { setId: "fossil", setNo: 1, pokedex: "#023", name: "Ekans", jpName: "アーボ", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 114, priceHKD: 0, img: "https://images.pokemontcg.io/base3/46_hires.png", count: 0 },
+      { setId: "fossil", setNo: 2, pokedex: "#041", name: "Zubat", jpName: "ズバット", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 130, priceHKD: 0, img: "https://images.pokemontcg.io/base3/57_hires.png", count: 0 },
+      { setId: "fossil", setNo: 3, pokedex: "#088", name: "Grimer", jpName: "ベトベター", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 121, priceHKD: 0, img: "https://images.pokemontcg.io/base3/48_hires.png", count: 0 },
+      { setId: "fossil", setNo: 4, pokedex: "#024", name: "Arbok", jpName: "アーボック", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 39, priceHKD: 0, img: "https://images.pokemontcg.io/base3/31_hires.png", count: 0 },
+      { setId: "fossil", setNo: 5, pokedex: "#042", name: "Golbat", jpName: "ゴルバット", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 61, priceHKD: 0, img: "https://images.pokemontcg.io/base3/34_hires.png", count: 0 },
+      { setId: "fossil", setNo: 6, pokedex: "#110", name: "Weezing", jpName: "マタドガス", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 62, priceHKD: 0, img: "https://images.pokemontcg.io/base3/45_hires.png", count: 0 },
+      { setId: "fossil", setNo: 7, pokedex: "#089", name: "Muk-Holo", jpName: "ベトベトン", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 297, priceHKD: 0, img: "https://images.pokemontcg.io/base3/13_hires.png", count: 0 },
+      { setId: "fossil", setNo: 8, pokedex: "#126", name: "Magmar", jpName: "ブーバー", type: "Fire", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 80, priceHKD: 0, img: "https://images.pokemontcg.io/base3/39_hires.png", count: 0 },
+      { setId: "fossil", setNo: 9, pokedex: "#146", name: "Moltres-Holo", jpName: "ファイヤー", type: "Fire", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 569, priceHKD: 0, img: "https://images.pokemontcg.io/base3/12_hires.png", count: 0 },
+      { setId: "fossil", setNo: 10, pokedex: "#054", name: "Psyduck", jpName: "コダック", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 233, priceHKD: 0, img: "https://images.pokemontcg.io/base3/53_hires.png", count: 0 },
+      { setId: "fossil", setNo: 11, pokedex: "#072", name: "Tentacool", jpName: "メノクラゲ", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 88, priceHKD: 0, img: "https://images.pokemontcg.io/base3/56_hires.png", count: 0 },
+      { setId: "fossil", setNo: 12, pokedex: "#090", name: "Shellder", jpName: "シェルダー", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 82, priceHKD: 0, img: "https://images.pokemontcg.io/base3/54_hires.png", count: 0 },
+      { setId: "fossil", setNo: 13, pokedex: "#098", name: "Krabby", jpName: "クラブ", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 87, priceHKD: 0, img: "https://images.pokemontcg.io/base3/51_hires.png", count: 0 },
+      { setId: "fossil", setNo: 14, pokedex: "#116", name: "Horsea", jpName: "タッツー", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 109, priceHKD: 0, img: "https://images.pokemontcg.io/base3/49_hires.png", count: 0 },
+      { setId: "fossil", setNo: 15, pokedex: "#138", name: "Omanyte", jpName: "オムナイト", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 98, priceHKD: 0, img: "https://images.pokemontcg.io/base3/52_hires.png", count: 0 },
+      { setId: "fossil", setNo: 16, pokedex: "#055", name: "Golduck", jpName: "ゴルダック", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 66, priceHKD: 0, img: "https://images.pokemontcg.io/base3/35_hires.png", count: 0 },
+      { setId: "fossil", setNo: 17, pokedex: "#073", name: "Tentacruel", jpName: "ドククラゲ", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 56, priceHKD: 0, img: "https://images.pokemontcg.io/base3/44_hires.png", count: 0 },
+      { setId: "fossil", setNo: 18, pokedex: "#091", name: "Cloyster", jpName: "パルシェン", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 45, priceHKD: 0, img: "https://images.pokemontcg.io/base3/32_hires.png", count: 0 },
+      { setId: "fossil", setNo: 19, pokedex: "#099", name: "Kingler", jpName: "キングラー", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 61, priceHKD: 0, img: "https://images.pokemontcg.io/base3/38_hires.png", count: 0 },
+      { setId: "fossil", setNo: 20, pokedex: "#117", name: "Seadra", jpName: "シードラ", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 46, priceHKD: 0, img: "https://images.pokemontcg.io/base3/42_hires.png", count: 0 },
+      { setId: "fossil", setNo: 21, pokedex: "#139", name: "Omastar", jpName: "オムスター", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 49, priceHKD: 0, img: "https://images.pokemontcg.io/base3/40_hires.png", count: 0 },
+      { setId: "fossil", setNo: 22, pokedex: "#131", name: "Lapras-Holo", jpName: "ラプラス", type: "Water", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 405, priceHKD: 0, img: "https://images.pokemontcg.io/base3/10_hires.png", count: 0 },
+      { setId: "fossil", setNo: 23, pokedex: "#144", name: "Articuno-Holo", jpName: "フリーザー", type: "Water", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 397, priceHKD: 0, img: "https://images.pokemontcg.io/base3/2_hires.png", count: 0 },
+      { setId: "fossil", setNo: 24, pokedex: "#026", name: "Raichu-Holo", jpName: "ライチュウ", type: "Lightning", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 405, priceHKD: 0, img: "https://images.pokemontcg.io/base3/14_hires.png", count: 0 },
+      { setId: "fossil", setNo: 25, pokedex: "#082", name: "Magneton-Holo", jpName: "レアコイル", type: "Lightning", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 467, priceHKD: 0, img: "https://images.pokemontcg.io/base3/11_hires.png", count: 0 },
+      { setId: "fossil", setNo: 26, pokedex: "#145", name: "Zapdos-Holo", jpName: "サンダー", type: "Lightning", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 674, priceHKD: 0, img: "https://images.pokemontcg.io/base3/15_hires.png", count: 0 },
+      { setId: "fossil", setNo: 27, pokedex: "#079", name: "Slowpoke", jpName: "ヤドン", type: "Psychic", rarity: "Common ●", rarityClass: "rarity-common", psa10: 197, priceHKD: 0, img: "https://images.pokemontcg.io/base3/55_hires.png", count: 0 },
+      { setId: "fossil", setNo: 28, pokedex: "#080", name: "Slowbro", jpName: "ヤドラン", type: "Psychic", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 125, priceHKD: 0, img: "https://images.pokemontcg.io/base3/43_hires.png", count: 0 },
+      { setId: "fossil", setNo: 29, pokedex: "#092", name: "Gastly", jpName: "ゴース", type: "Psychic", rarity: "Common ●", rarityClass: "rarity-common", psa10: 115, priceHKD: 0, img: "https://images.pokemontcg.io/base3/33_hires.png", count: 0 },
+      { setId: "fossil", setNo: 30, pokedex: "#093", name: "Haunter-Holo", jpName: "ゴースト", type: "Psychic", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 410, priceHKD: 0, img: "https://images.pokemontcg.io/base3/6_hires.png", count: 0 },
+      { setId: "fossil", setNo: 31, pokedex: "#094", name: "Gengar-Holo", jpName: "ゲンガー", type: "Psychic", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 559, priceHKD: 0, img: "https://images.pokemontcg.io/base3/5_hires.png", count: 0 },
+      { setId: "fossil", setNo: 32, pokedex: "#097", name: "Hypno-Holo", jpName: "スリーパー", type: "Psychic", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 444, priceHKD: 0, img: "https://images.pokemontcg.io/base3/8_hires.png", count: 0 },
+      { setId: "fossil", setNo: 33, pokedex: "#151", name: "Mew-Holo", jpName: "ミュウ", type: "Psychic", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 601, priceHKD: 0, img: "https://images.pokemontcg.io/basep/8_hires.png", count: 0 },
+      { setId: "fossil", setNo: 34, pokedex: "#074", name: "Geodude", jpName: "イシツブテ", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 91, priceHKD: 0, img: "https://images.pokemontcg.io/base3/47_hires.png", count: 0 },
+      { setId: "fossil", setNo: 35, pokedex: "#140", name: "Kabuto", jpName: "カブト", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 97, priceHKD: 0, img: "https://images.pokemontcg.io/base3/50_hires.png", count: 0 },
+      { setId: "fossil", setNo: 36, pokedex: "#028", name: "Sandslash", jpName: "サンドパン", type: "Fighting", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 44, priceHKD: 0, img: "https://images.pokemontcg.io/base3/41_hires.png", count: 0 },
+      { setId: "fossil", setNo: 37, pokedex: "#075", name: "Graveler", jpName: "ゴローン", type: "Fighting", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 71, priceHKD: 0, img: "https://images.pokemontcg.io/base3/37_hires.png", count: 0 },
+      { setId: "fossil", setNo: 38, pokedex: "#076", name: "Golem", jpName: "ゴローニャ", type: "Fighting", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 61, priceHKD: 0, img: "https://images.pokemontcg.io/base3/36_hires.png", count: 0 },
+      { setId: "fossil", setNo: 39, pokedex: "#106", name: "Hitmonlee-Holo", jpName: "サワムラー", type: "Fighting", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 316, priceHKD: 0, img: "https://images.pokemontcg.io/base3/7_hires.png", count: 0 },
+      { setId: "fossil", setNo: 40, pokedex: "#141", name: "Kabutops-Holo", jpName: "カブトプス", type: "Fighting", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 433, priceHKD: 0, img: "https://images.pokemontcg.io/base3/9_hires.png", count: 0 },
+      { setId: "fossil", setNo: 41, pokedex: "#142", name: "Aerodactyl-Holo", jpName: "プテラ", type: "Fighting", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 411, priceHKD: 0, img: "https://images.pokemontcg.io/base3/1_hires.png", count: 0 },
+      { setId: "fossil", setNo: 42, pokedex: "#132", name: "Ditto-Holo", jpName: "メタモン", type: "Colorless", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 313, priceHKD: 0, img: "https://images.pokemontcg.io/base3/3_hires.png", count: 0 },
+      { setId: "fossil", setNo: 43, pokedex: "#149", name: "Dragonite-Holo", jpName: "カイリュー", type: "Colorless", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 591, priceHKD: 0, img: "https://images.pokemontcg.io/base3/4_hires.png", count: 0 },
+      { setId: "fossil", setNo: 44, pokedex: "N/A", name: "Energy Search", jpName: "エネルギー転送", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 56, priceHKD: 0, img: "https://images.pokemontcg.io/base3/59_hires.png", count: 0 },
+      { setId: "fossil", setNo: 45, pokedex: "N/A", name: "Gambler", jpName: "ギャンブラー", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 65, priceHKD: 0, img: "https://images.pokemontcg.io/base3/60_hires.png", count: 0 },
+      { setId: "fossil", setNo: 46, pokedex: "N/A", name: "Mysterious Fossil", jpName: "なにかの化石", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 74, priceHKD: 0, img: "https://images.pokemontcg.io/base3/62_hires.png", count: 0 },
+      { setId: "fossil", setNo: 47, pokedex: "N/A", name: "Recycle", jpName: "リサイクル", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 74, priceHKD: 0, img: "https://images.pokemontcg.io/base3/61_hires.png", count: 0 },
+      { setId: "fossil", setNo: 48, pokedex: "N/A", name: "Mr. Fuji", jpName: "フジろうじん", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 88, priceHKD: 0, img: "https://images.pokemontcg.io/base3/58_hires.png", count: 0 }
+    ];
+
+    // 1997 日版《第4弾 拡張パック ロケット団 (Team Rocket)》65 張卡牌
+    const rocketCardsData = [
+      { setId: "rocket", setNo: 1, pokedex: "#023", name: "Ekans", jpName: "アーボ", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 50, priceHKD: 0, img: "https://images.pokemontcg.io/base5/56_hires.png", count: 0 },
+      { setId: "rocket", setNo: 2, pokedex: "#041", name: "Zubat", jpName: "ズバット", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 57, priceHKD: 0, img: "https://images.pokemontcg.io/base5/70_hires.png", count: 0 },
+      { setId: "rocket", setNo: 3, pokedex: "#043", name: "Oddish", jpName: "ナゾノクサ", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 63, priceHKD: 0, img: "https://images.pokemontcg.io/base5/63_hires.png", count: 0 },
+      { setId: "rocket", setNo: 4, pokedex: "#088", name: "Grimer", jpName: "ベトベター", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 882, priceHKD: 0, img: "https://images.pokemontcg.io/base5/57_hires.png", count: 0 },
+      { setId: "rocket", setNo: 5, pokedex: "#109", name: "Koffing", jpName: "ドガース", type: "Grass/Poison", rarity: "Common ●", rarityClass: "rarity-common", psa10: 70, priceHKD: 0, img: "https://images.pokemontcg.io/base5/58_hires.png", count: 0 },
+      { setId: "rocket", setNo: 6, pokedex: "#044", name: "Dark Gloom", jpName: "わるいクサイハナ", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 83, priceHKD: 0, img: "https://images.pokemontcg.io/base5/36_hires.png", count: 0 },
+      { setId: "rocket", setNo: 7, pokedex: "#089", name: "Dark Muk", jpName: "わるいベトベトン", type: "Grass/Poison", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 63, priceHKD: 0, img: "https://images.pokemontcg.io/base5/41_hires.png", count: 0 },
+      { setId: "rocket", setNo: 8, pokedex: "#024", name: "Dark Arbok-Holo", jpName: "わるいアーボック", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 454, priceHKD: 0, img: "https://images.pokemontcg.io/base5/2_hires.png", count: 0 },
+      { setId: "rocket", setNo: 9, pokedex: "#042", name: "Dark Golbat-Holo", jpName: "わるいゴルバット", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 522, priceHKD: 0, img: "https://images.pokemontcg.io/base5/7_hires.png", count: 0 },
+      { setId: "rocket", setNo: 10, pokedex: "#045", name: "Dark Vileplume-Holo", jpName: "わるいラフレシア", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 371, priceHKD: 0, img: "https://images.pokemontcg.io/base5/13_hires.png", count: 0 },
+      { setId: "rocket", setNo: 11, pokedex: "#110", name: "Dark Weezing-Holo", jpName: "わるいマタドガス", type: "Grass/Poison", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 534, priceHKD: 0, img: "https://images.pokemontcg.io/base5/14_hires.png", count: 0 },
+      { setId: "rocket", setNo: 12, pokedex: "#004", name: "Charmander", jpName: "ヒトカゲ", type: "Fire", rarity: "Common ●", rarityClass: "rarity-common", psa10: 322, priceHKD: 0, img: "https://images.pokemontcg.io/base5/50_hires.png", count: 0 },
+      { setId: "rocket", setNo: 13, pokedex: "#077", name: "Ponyta", jpName: "ポニータ", type: "Fire", rarity: "Common ●", rarityClass: "rarity-common", psa10: 80, priceHKD: 0, img: "https://images.pokemontcg.io/base5/64_hires.png", count: 0 },
+      { setId: "rocket", setNo: 14, pokedex: "#078", name: "Dark Rapidash", jpName: "わるいギャロップ", type: "Fire", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 102, priceHKD: 0, img: "https://images.pokemontcg.io/base5/44_hires.png", count: 0 },
+      { setId: "rocket", setNo: 15, pokedex: "#005", name: "Dark Charmeleon", jpName: "わるいリザード", type: "Fire", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 304, priceHKD: 0, img: "https://images.pokemontcg.io/base5/32_hires.png", count: 0 },
+      { setId: "rocket", setNo: 16, pokedex: "#136", name: "Dark Flareon", jpName: "わるいブースター", type: "Fire", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 323, priceHKD: 0, img: "https://images.pokemontcg.io/base5/35_hires.png", count: 0 },
+      { setId: "rocket", setNo: 17, pokedex: "#006", name: "Dark Charizard-Holo", jpName: "わるいリザードン", type: "Fire", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 1712, priceHKD: 0, img: "https://images.pokemontcg.io/base5/4_hires.png", count: 0 },
+      { setId: "rocket", setNo: 18, pokedex: "#007", name: "Squirtle", jpName: "ゼニガメ", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 292, priceHKD: 0, img: "https://images.pokemontcg.io/base5/68_hires.png", count: 0 },
+      { setId: "rocket", setNo: 19, pokedex: "#054", name: "Psyduck", jpName: "コダック", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 180, priceHKD: 0, img: "https://images.pokemontcg.io/base5/65_hires.png", count: 0 },
+      { setId: "rocket", setNo: 20, pokedex: "#129", name: "Magikarp", jpName: "コイキング", type: "Water", rarity: "Common ●", rarityClass: "rarity-common", psa10: 245, priceHKD: 0, img: "https://images.pokemontcg.io/base5/47_hires.png", count: 0 },
+      { setId: "rocket", setNo: 21, pokedex: "#008", name: "Dark Wartortle", jpName: "わるいカメール", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 237, priceHKD: 0, img: "https://images.pokemontcg.io/base5/46_hires.png", count: 0 },
+      { setId: "rocket", setNo: 22, pokedex: "#055", name: "Dark Golduck", jpName: "わるいゴルダック", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 94, priceHKD: 0, img: "https://images.pokemontcg.io/base5/37_hires.png", count: 0 },
+      { setId: "rocket", setNo: 23, pokedex: "#134", name: "Dark Vaporeon", jpName: "わるいシャワーズ", type: "Water", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 305, priceHKD: 0, img: "https://images.pokemontcg.io/base5/45_hires.png", count: 0 },
+      { setId: "rocket", setNo: 24, pokedex: "#009", name: "Dark Blastoise-Holo", jpName: "わるいカメックス", type: "Water", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 1130, priceHKD: 0, img: "https://images.pokemontcg.io/base5/3_hires.png", count: 0 },
+      { setId: "rocket", setNo: 25, pokedex: "#130", name: "Dark Gyarados-Holo", jpName: "わるいギャラドス", type: "Water", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 979, priceHKD: 0, img: "https://images.pokemontcg.io/base5/8_hires.png", count: 0 },
+      { setId: "rocket", setNo: 26, pokedex: "#081", name: "Magnemite", jpName: "コイル", type: "Lightning", rarity: "Common ●", rarityClass: "rarity-common", psa10: 68, priceHKD: 0, img: "https://images.pokemontcg.io/base5/60_hires.png", count: 0 },
+      { setId: "rocket", setNo: 27, pokedex: "#100", name: "Voltorb", jpName: "ビリリダマ", type: "Lightning", rarity: "Common ●", rarityClass: "rarity-common", psa10: 69, priceHKD: 0, img: "https://images.pokemontcg.io/base5/69_hires.png", count: 0 },
+      { setId: "rocket", setNo: 28, pokedex: "#101", name: "Dark Electrode", jpName: "わるいマルマイン", type: "Lightning", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 54, priceHKD: 0, img: "https://images.pokemontcg.io/base5/34_hires.png", count: 0 },
+      { setId: "rocket", setNo: 29, pokedex: "#135", name: "Dark Jolteon", jpName: "わるいサンダース", type: "Lightning", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 405, priceHKD: 0, img: "https://images.pokemontcg.io/base5/38_hires.png", count: 0 },
+      { setId: "rocket", setNo: 30, pokedex: "#082", name: "Dark Magneton-Holo", jpName: "わるいレアコイル", type: "Lightning", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 353, priceHKD: 0, img: "https://images.pokemontcg.io/base5/11_hires.png", count: 0 },
+      { setId: "rocket", setNo: 31, pokedex: "#063", name: "Abra", jpName: "ケーシィ", type: "Psychic", rarity: "Common ●", rarityClass: "rarity-common", psa10: 112, priceHKD: 0, img: "https://images.pokemontcg.io/base5/49_hires.png", count: 0 },
+      { setId: "rocket", setNo: 32, pokedex: "#079", name: "Slowpoke", jpName: "ヤドン", type: "Psychic", rarity: "Common ●", rarityClass: "rarity-common", psa10: 170, priceHKD: 0, img: "https://images.pokemontcg.io/base5/67_hires.png", count: 0 },
+      { setId: "rocket", setNo: 33, pokedex: "#096", name: "Drowzee", jpName: "スリープ", type: "Psychic", rarity: "Common ●", rarityClass: "rarity-common", psa10: 78, priceHKD: 0, img: "https://images.pokemontcg.io/base5/54_hires.png", count: 0 },
+      { setId: "rocket", setNo: 34, pokedex: "#064", name: "Dark Kadabra", jpName: "わるいユンゲラー", type: "Psychic", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 120, priceHKD: 0, img: "https://images.pokemontcg.io/base5/39_hires.png", count: 0 },
+      { setId: "rocket", setNo: 35, pokedex: "#065", name: "Dark Alakazam-Holo", jpName: "わるいフーディン", type: "Psychic", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 804, priceHKD: 0, img: "https://images.pokemontcg.io/base5/1_hires.png", count: 0 },
+      { setId: "rocket", setNo: 36, pokedex: "#080", name: "Dark Slowbro-Holo", jpName: "わるいヤドラン", type: "Psychic", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 554, priceHKD: 0, img: "https://images.pokemontcg.io/base5/12_hires.png", count: 0 },
+      { setId: "rocket", setNo: 37, pokedex: "#097", name: "Dark Hypno-Holo", jpName: "わるいスリーパー", type: "Psychic", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 651, priceHKD: 0, img: "https://images.pokemontcg.io/base5/9_hires.png", count: 0 },
+      { setId: "rocket", setNo: 38, pokedex: "#050", name: "Diglett", jpName: "ディグダ", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 66, priceHKD: 0, img: "https://images.pokemontcg.io/base5/52_hires.png", count: 0 },
+      { setId: "rocket", setNo: 39, pokedex: "#056", name: "Mankey", jpName: "マンキー", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 88, priceHKD: 0, img: "https://images.pokemontcg.io/base5/61_hires.png", count: 0 },
+      { setId: "rocket", setNo: 40, pokedex: "#066", name: "Machop", jpName: "ワンリキー", type: "Fighting", rarity: "Common ●", rarityClass: "rarity-common", psa10: 51, priceHKD: 0, img: "https://images.pokemontcg.io/base5/59_hires.png", count: 0 },
+      { setId: "rocket", setNo: 41, pokedex: "#057", name: "Dark Primeape", jpName: "わるいオコリザル", type: "Fighting", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 65, priceHKD: 0, img: "https://images.pokemontcg.io/base5/43_hires.png", count: 0 },
+      { setId: "rocket", setNo: 42, pokedex: "#067", name: "Dark Machoke", jpName: "わるいゴーリキー", type: "Fighting", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 78, priceHKD: 0, img: "https://images.pokemontcg.io/base5/40_hires.png", count: 0 },
+      { setId: "rocket", setNo: 43, pokedex: "#051", name: "Dark Dugtrio-Holo", jpName: "わるいダグトリオ", type: "Fighting", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 430, priceHKD: 0, img: "https://images.pokemontcg.io/base5/6_hires.png", count: 0 },
+      { setId: "rocket", setNo: 44, pokedex: "#068", name: "Dark Machamp-Holo", jpName: "わるいカイリキー", type: "Fighting", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 654, priceHKD: 0, img: "https://images.pokemontcg.io/base5/10_hires.png", count: 0 },
+      { setId: "rocket", setNo: 45, pokedex: "#019", name: "Rattata", jpName: "コラッタ", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 47, priceHKD: 0, img: "https://images.pokemontcg.io/base5/66_hires.png", count: 0 },
+      { setId: "rocket", setNo: 46, pokedex: "#020", name: "Dark Raticate", jpName: "わるいラッタ", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 72, priceHKD: 0, img: "https://images.pokemontcg.io/base5/51_hires.png", count: 0 },
+      { setId: "rocket", setNo: 47, pokedex: "#052", name: "Meowth", jpName: "ニャース", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 115, priceHKD: 0, img: "https://images.pokemontcg.io/base5/62_hires.png", count: 0 },
+      { setId: "rocket", setNo: 48, pokedex: "#053", name: "Dark Persian", jpName: "わるいペルシアン", type: "Colorless", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 116, priceHKD: 0, img: "https://images.pokemontcg.io/base5/42_hires.png", count: 0 },
+      { setId: "rocket", setNo: 49, pokedex: "#133", name: "Eevee", jpName: "イーブイ", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 247, priceHKD: 0, img: "https://images.pokemontcg.io/base5/55_hires.png", count: 0 },
+      { setId: "rocket", setNo: 50, pokedex: "#137", name: "Porygon", jpName: "ポリゴン", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 91, priceHKD: 0, img: "https://images.pokemontcg.io/base5/48_hires.png", count: 0 },
+      { setId: "rocket", setNo: 51, pokedex: "#147", name: "Dratini", jpName: "ミニリュウ", type: "Colorless", rarity: "Common ●", rarityClass: "rarity-common", psa10: 133, priceHKD: 0, img: "https://images.pokemontcg.io/base5/53_hires.png", count: 0 },
+      { setId: "rocket", setNo: 52, pokedex: "#148", name: "Dark Dragonair", jpName: "わるいハクリュー", type: "Colorless", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 230, priceHKD: 0, img: "https://images.pokemontcg.io/base5/33_hires.png", count: 0 },
+      { setId: "rocket", setNo: 53, pokedex: "#149", name: "Dark Dragonite-Holo", jpName: "わるいカイリュー", type: "Colorless", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 826, priceHKD: 0, img: "https://images.pokemontcg.io/base5/5_hires.png", count: 0 },
+      { setId: "rocket", setNo: 54, pokedex: "N/A", name: "Sleep!", jpName: "ねむれ！ねむれ！", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 135, priceHKD: 0, img: "https://images.pokemontcg.io/base5/79_hires.png", count: 0 },
+      { setId: "rocket", setNo: 55, pokedex: "N/A", name: "Digger", jpName: "あなほり", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 74, priceHKD: 0, img: "https://images.pokemontcg.io/base5/75_hires.png", count: 0 },
+      { setId: "rocket", setNo: 56, pokedex: "N/A", name: "Goop Gas Attack", jpName: "ガスこうげき", type: "Trainer", rarity: "Common ●", rarityClass: "rarity-common", psa10: 55, priceHKD: 0, img: "https://images.pokemontcg.io/base5/78_hires.png", count: 0 },
+      { setId: "rocket", setNo: 57, pokedex: "N/A", name: "Nightly Garbage Run", jpName: "夜の廃品回収", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 61, priceHKD: 0, img: "https://images.pokemontcg.io/base5/77_hires.png", count: 0 },
+      { setId: "rocket", setNo: 58, pokedex: "N/A", name: "Challenge!", jpName: "チャレンジ！", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 110, priceHKD: 0, img: "https://images.pokemontcg.io/base5/74_hires.png", count: 0 },
+      { setId: "rocket", setNo: 59, pokedex: "N/A", name: "Imposter Oak's Revenge", jpName: "にせオーキドの逆襲", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 192, priceHKD: 0, img: "https://images.pokemontcg.io/base5/76_hires.png", count: 0 },
+      { setId: "rocket", setNo: 60, pokedex: "N/A", name: "The Boss's Way", jpName: "ボスのやりかた", type: "Trainer", rarity: "Uncommon ◆", rarityClass: "rarity-uncommon", psa10: 85, priceHKD: 0, img: "https://images.pokemontcg.io/base5/73_hires.png", count: 0 },
+      { setId: "rocket", setNo: 61, pokedex: "N/A", name: "Rocket's Sneak Attack-Holo", jpName: "ロケット団のヒミツ作戦", type: "Trainer", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 450, priceHKD: 0, img: "https://images.pokemontcg.io/base5/16_hires.png", count: 0 },
+      { setId: "rocket", setNo: 62, pokedex: "N/A", name: "Here Comes Team Rocket!-Holo", jpName: "ロケット団参上！", type: "Trainer", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 240, priceHKD: 0, img: "https://images.pokemontcg.io/base5/15_hires.png", count: 0 },
+      { setId: "rocket", setNo: 63, pokedex: "N/A", name: "Potion Energy", jpName: "きずぐすりエネルギー", type: "Special Energy", rarity: "Common ●", rarityClass: "rarity-common", psa10: 28, priceHKD: 0, img: "https://images.pokemontcg.io/base5/82_hires.png", count: 0 },
+      { setId: "rocket", setNo: 64, pokedex: "N/A", name: "Full Heal Energy", jpName: "なんでもなおしエネルギー", type: "Special Energy", rarity: "Common ●", rarityClass: "rarity-common", psa10: 46, priceHKD: 0, img: "https://images.pokemontcg.io/base5/81_hires.png", count: 0 },
+      { setId: "rocket", setNo: 65, pokedex: "N/A", name: "Rainbow Energy-Holo", jpName: "レインボーエネルギー", type: "Special Energy", rarity: "Holo Rare ★", rarityClass: "rarity-holo", psa10: 386, priceHKD: 0, img: "https://images.pokemontcg.io/base5/17_hires.png", count: 0 }
+    ];
+
+    const allBaseData = [...baseCardsData, ...jungleCardsData, ...fossilCardsData, ...rocketCardsData];
+
+    let currentSetId = localStorage.getItem('tcg_vintage_active_set_v9') || 'base';
+    let currentCurrency = localStorage.getItem('tcg_vintage_currency_v9') || 'HKD';
+    let cardsData = JSON.parse(JSON.stringify(allBaseData));
+    let currentList = [];
+    let selectedType = 'all';
+    let selectedRarity = 'all';
+    let activeModalCard = null;
+    let saveTimeout = null;
+
+    function getCurrencySymbol() {
+      return currentCurrency === 'USD' ? '$' : 'HK$';
+    }
+
+    function getDisplayPrice(card) {
+      const baseHKD = Number(card.priceHKD) || 0;
+      if (currentCurrency === 'USD') {
+        return Number((baseHKD / EXCHANGE_RATE).toFixed(2));
+      }
+      return baseHKD;
+    }
+
+    function updateSyncUI(status) {
+      const badge = document.getElementById('syncStatusBadge');
+      if (status === 'live') {
+        badge.className = 'sync-badge';
+        badge.textContent = '🟢 雲端同步中';
+      } else if (status === 'syncing') {
+        badge.className = 'sync-badge syncing';
+        badge.textContent = '🟡 儲存中...';
+      } else {
+        badge.className = 'sync-badge offline';
+        badge.textContent = '🔴 本地模式 (未連線)';
+      }
+    }
+
+    function initDataSync() {
+      if (isCloudEnabled && db) {
+        updateSyncUI('syncing');
+        db.collection('pokemon_collection').doc('user_inventory').onSnapshot(doc => {
+          if (doc.exists) {
+            const cloudData = doc.data().inventory || {};
+            cardsData = allBaseData.map(def => {
+              const key = `${def.setId}_${def.setNo}`;
+              const found = cloudData[key];
+              return found ? {
+                ...def,
+                priceHKD: Number(found.priceHKD) || 0,
+                count: Number(found.count) || 0,
+                psa10: def.psa10
+              } : def;
+            });
+          }
+          updateSyncUI('live');
+          applyFilters();
+        }, err => {
+          console.error("Firebase 監聽失敗:", err);
+          updateSyncUI('offline');
+          fallbackLocalStorage();
+        });
+      } else {
+        updateSyncUI('offline');
+        fallbackLocalStorage();
+      }
+    }
+
+    function fallbackLocalStorage() {
+      const saved = localStorage.getItem('tcg_vintage_inventory_v9');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          cardsData = allBaseData.map(def => {
+            const found = parsed.find(p => p.setId === def.setId && p.setNo === def.setNo);
+            return found ? {
+              ...def,
+              priceHKD: Number(found.priceHKD) || 0,
+              count: Number(found.count) || 0,
+              psa10: def.psa10
+            } : def;
+          });
+        } catch(e) {}
+      }
+      applyFilters();
+    }
+
+    function syncSaveData() {
+      updateSyncUI('syncing');
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        const inventoryMap = {};
+        const localList = [];
+        cardsData.forEach(c => {
+          if (c.priceHKD > 0 || c.count > 0) {
+            inventoryMap[`${c.setId}_${c.setNo}`] = { priceHKD: c.priceHKD, count: c.count };
+          }
+          localList.push({ setId: c.setId, setNo: c.setNo, priceHKD: c.priceHKD, count: c.count });
+        });
+
+        localStorage.setItem('tcg_vintage_inventory_v9', JSON.stringify(localList));
+        localStorage.setItem('tcg_vintage_currency_v9', currentCurrency);
+        localStorage.setItem('tcg_vintage_active_set_v9', currentSetId);
+
+        if (isCloudEnabled && db) {
+          db.collection('pokemon_collection').doc('user_inventory').set({
+            inventory: inventoryMap,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }).then(() => {
+            updateSyncUI('live');
+          }).catch(err => {
+            console.error("雲端儲存失敗:", err);
+            updateSyncUI('offline');
+          });
+        } else {
+          updateSyncUI('offline');
+        }
+        updateStats();
+      }, 500);
+    }
+
+    function switchSet(setId) {
+      currentSetId = setId;
+      localStorage.setItem('tcg_vintage_active_set_v9', setId);
+
+      document.querySelectorAll('.set-switcher .set-tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      if (setId === 'base') document.querySelectorAll('.set-switcher .set-tab-btn')[0].classList.add('active');
+      else if (setId === 'jungle') document.querySelectorAll('.set-switcher .set-tab-btn')[1].classList.add('active');
+      else if (setId === 'fossil') document.querySelectorAll('.set-switcher .set-tab-btn')[2].classList.add('active');
+      else if (setId === 'rocket') document.querySelectorAll('.set-switcher .set-tab-btn')[3].classList.add('active');
+      else document.querySelectorAll('.set-switcher .set-tab-btn')[4].classList.add('active');
+
+      updateSidebarMeta();
+      applyFilters();
+    }
+
+    function updateSidebarMeta() {
+      const title = document.getElementById('sideSetTitle');
+      const sub = document.getElementById('sideSetSub');
+      const rel = document.getElementById('sideSetRelease');
+      const desc = document.getElementById('sidePsaDesc');
+      const topBtn = document.getElementById('topPsaBtn');
+      const sideBtn = document.getElementById('sidePsaBtn');
+
+      if (currentSetId === 'base') {
+        title.textContent = '第1弾 拡張パック';
+        sub.textContent = 'Expansion Pack (Japanese Base Set)';
+        rel.textContent = 'Release: October 20, 1996';
+        desc.textContent = '官方資料庫查驗 1996 年日版第1彈元祖卡牌評級存世量。';
+        topBtn.href = 'https://www.psacard.com/pop/tcg-cards/1996/pokemon-japanese-basic/55428';
+        sideBtn.href = 'https://www.psacard.com/pop/tcg-cards/1996/pokemon-japanese-basic/55428';
+      } else if (currentSetId === 'jungle') {
+        title.textContent = 'ポケモンジャングル';
+        sub.textContent = 'Pokémon Jungle (Japanese Edition)';
+        rel.textContent = 'Release: March 5, 1997';
+        desc.textContent = '官方資料庫查驗 1997 年日版 Jungle 卡牌評級存世量。';
+        topBtn.href = 'https://www.psacard.com/pop/tcg-cards/1997/pokemon-japanese-jungle/58978';
+        sideBtn.href = 'https://www.psacard.com/pop/tcg-cards/1997/pokemon-japanese-jungle/58978';
+      } else if (currentSetId === 'fossil') {
+        title.textContent = '化石の秘密';
+        sub.textContent = 'Mystery of the Fossils (Japanese Edition)';
+        rel.textContent = 'Release: June 21, 1997';
+        desc.textContent = '官方資料庫查驗 1997 年日版化石彈卡牌評級存世量。';
+        topBtn.href = 'https://www.psacard.com/pop/tcg-cards/1997/pokemon-japanese-fossil/57618';
+        sideBtn.href = 'https://www.psacard.com/pop/tcg-cards/1997/pokemon-japanese-fossil/57618';
+      } else if (currentSetId === 'rocket') {
+        title.textContent = '拡張パック ロケット団';
+        sub.textContent = 'Team Rocket (Japanese Edition)';
+        rel.textContent = 'Release: November 21, 1997';
+        desc.textContent = '官方資料庫查驗 1997 年日版火箭隊「わるい」系列卡牌評級存世量。';
+        topBtn.href = 'https://www.psacard.com/pop/tcg-cards/1997/pokemon-japanese-rocket/61535';
+        sideBtn.href = 'https://www.psacard.com/pop/tcg-cards/1997/pokemon-japanese-rocket/61535';
+      } else {
+        title.textContent = '1996-1997 日本經典四部曲';
+        sub.textContent = 'Base • Jungle • Fossil • Team Rocket (263 Cards)';
+        rel.textContent = 'Era: 1996 - 1997';
+        desc.textContent = '查閱 PSA 官方舊卡背經典四彈全部評級庫存報告。';
+        topBtn.href = 'https://www.psacard.com/pop/tcg-cards/1996/pokemon-japanese-basic/55428';
+        sideBtn.href = 'https://www.psacard.com/pop/tcg-cards/1996/pokemon-japanese-basic/55428';
+      }
+    }
+
+    function updateStats() {
+      const activeSetCards = cardsData.filter(c => currentSetId === 'all' || c.setId === currentSetId);
+      const collected = activeSetCards.filter(c => c.count > 0).length;
+      document.getElementById('statsCollectedCount').textContent = collected;
+      document.getElementById('statsTotalSetCards').textContent = activeSetCards.length;
+
+      const totalPsa10 = activeSetCards.reduce((acc, c) => acc + (c.psa10 || 0), 0);
+      document.getElementById('statsPsaTotal').textContent = totalPsa10.toLocaleString();
+
+      const totalValHKD = activeSetCards.reduce((acc, c) => acc + ((Number(c.priceHKD) || 0) * c.count), 0);
+      const displayTotal = currentCurrency === 'USD' ? (totalValHKD / EXCHANGE_RATE) : totalValHKD;
+      document.getElementById('statsTotalValue').textContent = `${getCurrencySymbol()} ${displayTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    function padNum(n) {
+      return n < 10 ? `0${n}` : `${n}`;
+    }
+
+    function exportToCSV() {
+      const headers = [
+        "擴充彈 (Set)",
+        "套裝編號 (Set No)",
+        "全國圖鑑號 (Pokédex)",
+        "英文名稱 (English Name)",
+        "日文名稱 (Japanese Name)",
+        "屬性 (Type)",
+        "稀有度 (Rarity)",
+        "PSA 10 鑑定數量 (PSA 10 Pop)",
+        "持有數量 (Quantity)",
+        "單價 HKD (Unit Price HKD)",
+        "單價 USD (Unit Price USD)",
+        "總市值 HKD (Total HKD)",
+        "總市值 USD (Total USD)"
+      ];
+
+      const activeSetCards = cardsData.filter(c => currentSetId === 'all' || c.setId === currentSetId);
+
+      const rows = activeSetCards.map(c => {
+        const count = Number(c.count) || 0;
+        const priceHKD = Number(c.priceHKD) || 0;
+        const priceUSD = Number((priceHKD / EXCHANGE_RATE).toFixed(2));
+        const totalHKD = Number((priceHKD * count).toFixed(2));
+        const totalUSD = Number((priceUSD * count).toFixed(2));
+        let setName = 'Base Set (第1弾 拡張パック)';
+        if (c.setId === 'jungle') setName = 'Jungle (ジャングル)';
+        if (c.setId === 'fossil') setName = 'Fossil (化石の秘密)';
+        if (c.setId === 'rocket') setName = 'Team Rocket (ロケット団)';
+
+        return [
+          `"${setName}"`,
+          `"No. ${padNum(c.setNo)}"`,
+          `"${c.pokedex}"`,
+          `"${c.name}"`,
+          `"${c.jpName}"`,
+          `"${c.type}"`,
+          `"${c.rarity}"`,
+          c.psa10,
+          count,
+          priceHKD.toFixed(2),
+          priceUSD.toFixed(2),
+          totalHKD.toFixed(2),
+          totalUSD.toFixed(2)
+        ].join(",");
+      });
+
+      const csvString = [headers.join(","), ...rows].join("\r\n");
+      const blob = new Blob(["\uFEFF" + csvString], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Pokemon_1996_1997_${currentSetId.toUpperCase()}_Inventory_${dateStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function renderCards(list) {
+      const grid = document.getElementById('cardsGrid');
+      grid.innerHTML = '';
+
+      if (list.length === 0) {
+        grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 4rem;">沒有符合條件的卡牌。</div>`;
+        return;
+      }
+
+      const sym = getCurrencySymbol();
+
+      list.forEach(card => {
+        const isUnowned = card.count === 0;
+        const currentVal = getDisplayPrice(card);
+        let setBadgeClass = 'badge-base';
+        let setLabel = 'Base';
+        if (card.setId === 'jungle') { setBadgeClass = 'badge-jungle'; setLabel = 'Jungle'; }
+        if (card.setId === 'fossil') { setBadgeClass = 'badge-fossil'; setLabel = 'Fossil'; }
+        if (card.setId === 'rocket') { setBadgeClass = 'badge-rocket'; setLabel = 'Rocket'; }
+
+        const el = document.createElement('div');
+        el.className = `card-item ${isUnowned ? 'unowned' : ''}`;
+        el.id = `card-elem-${card.setId}-${card.setNo}`;
+        el.innerHTML = `
+          <div class="card-img-container" onclick="openModal('${card.setId}', ${card.setNo})">
+            <img class="card-img" id="img-${card.setId}-${card.setNo}" src="${card.img}" alt="${card.name}" loading="lazy">
+            <div class="holo-glow"></div>
+          </div>
+          <div class="card-info">
+            <div class="card-header-line">
+              <span class="card-set-badge ${setBadgeClass}">${setLabel}</span>
+              <span class="card-set-num">No. ${padNum(card.setNo)}</span>
+              <span class="card-pokedex-num">${card.pokedex !== 'N/A' ? card.pokedex : 'Trainer'}</span>
+              <span class="card-rarity ${card.rarityClass}">${card.rarity}</span>
+            </div>
+            <div class="card-title">${card.name}</div>
+            <div class="card-title-jp">${card.jpName}</div>
+            
+            <div class="card-psa-pop-line">
+              <span class="psa-10-badge" title="PSA 官方鑑定 GEM-MT 10 存世數量">
+                🔴 PSA 10 : ${card.psa10.toLocaleString()} 張
+              </span>
+            </div>
+
+            <div class="card-footer-line">
+              <div class="price-edit-wrap" title="點擊輸入價錢">
+                <span class="currency-symbol-tag">${sym}</span>
+                <input type="number" step="any" min="0" class="price-input" value="${currentVal}" onchange="updatePrice('${card.setId}', ${card.setNo}, this.value)" onclick="this.select()">
+              </div>
+              <div class="collector-counter">
+                <button class="counter-btn" onclick="updateCount('${card.setId}', ${card.setNo}, -1)">-</button>
+                <span class="counter-val" id="count-${card.setId}-${card.setNo}">${card.count}</span>
+                <button class="counter-btn" onclick="updateCount('${card.setId}', ${card.setNo}, 1)">+</button>
+              </div>
+            </div>
+          </div>
+        `;
+        grid.appendChild(el);
+      });
+
+      updateStats();
+    }
+
+    function changeCurrency(curr) {
+      currentCurrency = curr;
+      localStorage.setItem('tcg_vintage_currency_v9', curr);
+      renderCards(currentList);
+      if (activeModalCard !== null) {
+        openModal(activeModalCard.setId, activeModalCard.setNo);
+      }
+    }
+
+    function updatePrice(setId, setNo, newPrice) {
+      const item = cardsData.find(c => c.setId === setId && c.setNo === setNo);
+      if (item) {
+        const val = Math.max(0, parseFloat(newPrice) || 0);
+        item.priceHKD = currentCurrency === 'USD' ? Number((val * EXCHANGE_RATE).toFixed(2)) : val;
+        syncSaveData();
+      }
+    }
+
+    function updateCount(setId, setNo, delta) {
+      const item = cardsData.find(c => c.setId === setId && c.setNo === setNo);
+      if (item) {
+        item.count = Math.max(0, item.count + delta);
+        
+        const cardElem = document.getElementById(`card-elem-${setId}-${setNo}`);
+        if (cardElem) {
+          if (item.count === 0) cardElem.classList.add('unowned');
+          else cardElem.classList.remove('unowned');
+        }
+
+        const countSpan = document.getElementById(`count-${setId}-${setNo}`);
+        if (countSpan) countSpan.textContent = item.count;
+        
+        syncSaveData();
+      }
+    }
+
+    function applyFilters() {
+      const q = document.getElementById('searchInput').value.toLowerCase().trim();
+      currentList = cardsData.filter(c => {
+        const matchesSet = (currentSetId === 'all' || c.setId === currentSetId);
+        const matchesType = (selectedType === 'all' || c.type.includes(selectedType));
+        const matchesRarity = (selectedRarity === 'all' || c.rarity === selectedRarity);
+        const matchesSearch = !q || (
+          c.name.toLowerCase().includes(q) ||
+          c.jpName.includes(q) ||
+          padNum(c.setNo).includes(q) ||
+          c.pokedex.toLowerCase().includes(q)
+        );
+        return matchesSet && matchesType && matchesRarity && matchesSearch;
+      });
+      renderCards(currentList);
+    }
+
+    function handleSearch(query) {
+      applyFilters();
+    }
+
+    function filterByType(type) {
+      selectedType = type;
+      document.querySelectorAll('.sidebar .filter-group:nth-child(2) .chip').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.toLowerCase() === type.toLowerCase() || (type === 'all' && btn.textContent === 'All'));
+      });
+      applyFilters();
+    }
+
+    function filterByRarity(rarity) {
+      selectedRarity = rarity;
+      document.querySelectorAll('.sidebar .filter-group:nth-child(3) .chip').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.toLowerCase() === rarity.toLowerCase() || (rarity === 'all' && btn.textContent === 'All'));
+      });
+      applyFilters();
+    }
+
+    function handleSort(mode) {
+      if (mode === 'set-asc') {
+        currentList.sort((a, b) => a.setNo - b.setNo);
+      } else if (mode === 'set-desc') {
+        currentList.sort((a, b) => b.setNo - a.setNo);
+      } else if (mode === 'psa10-asc') {
+        currentList.sort((a, b) => a.psa10 - b.psa10);
+      } else if (mode === 'psa10-desc') {
+        currentList.sort((a, b) => b.psa10 - a.psa10);
+      } else if (mode === 'count-desc') {
+        currentList.sort((a, b) => b.count - a.count);
+      } else if (mode === 'price-desc') {
+        currentList.sort((a, b) => (b.priceHKD || 0) - (a.priceHKD || 0));
+      } else if (mode === 'name-asc') {
+        currentList.sort((a, b) => a.name.localeCompare(b.name));
+      }
+      renderCards(currentList);
+    }
+
+    function openModal(setId, setNo) {
+      const card = cardsData.find(c => c.setId === setId && c.setNo === setNo);
+      if (!card) return;
+      activeModalCard = card;
+      let setName = '第1弾 拡張パック (Base Set)';
+      if (card.setId === 'jungle') setName = 'ポケモンジャングル (Jungle)';
+      if (card.setId === 'fossil') setName = '化石の秘密 (Fossil)';
+      if (card.setId === 'rocket') setName = '第4弾 拡張パック ロケット団 (Team Rocket)';
+
+      const totalCardsInSet = card.setId === 'base' ? '102' : (card.setId === 'rocket' ? '65' : '48');
+
+      document.getElementById('modalImg').src = card.img;
+      document.getElementById('modalTitle').textContent = `${card.name}`;
+      document.getElementById('modalJpTitle').textContent = card.jpName;
+      document.getElementById('modalSet').textContent = setName;
+      document.getElementById('modalSetNum').textContent = `No. ${padNum(card.setNo)} / ${totalCardsInSet}`;
+      document.getElementById('modalPokedex').textContent = card.pokedex;
+      document.getElementById('modalRarity').textContent = card.rarity;
+      document.getElementById('modalType').textContent = card.type;
+      document.getElementById('modalPsa10').textContent = card.psa10.toLocaleString();
+      document.getElementById('modalCurrencyLabel').textContent = currentCurrency;
+      document.getElementById('modalCurrencySymbol').textContent = getCurrencySymbol();
+      document.getElementById('modalPriceInput').value = getDisplayPrice(card);
+      document.getElementById('cardModal').classList.add('active');
+    }
+
+    function updateModalPrice(newPrice) {
+      if (activeModalCard !== null) {
+        const item = cardsData.find(c => c.setId === activeModalCard.setId && c.setNo === activeModalCard.setNo);
+        if (item) {
+          const val = Math.max(0, parseFloat(newPrice) || 0);
+          item.priceHKD = currentCurrency === 'USD' ? Number((val * EXCHANGE_RATE).toFixed(2)) : val;
+          syncSaveData();
+          applyFilters();
+        }
+      }
+    }
+
+    function closeModal(e) {
+      document.getElementById('cardModal').classList.remove('active');
+      activeModalCard = null;
+    }
+
+    document.getElementById('currencySelect').value = currentCurrency;
+    initDataSync();
+    switchSet(currentSetId);
+  </script>
+</body>
+</html>
