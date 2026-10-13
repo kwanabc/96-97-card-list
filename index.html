@@ -255,8 +255,8 @@ const CONFIG = {
 
   // 後台：建議「不要」寫在這裡（這份網頁是公開的，寫在這裡全世界都看得到）。
   //  請改用網頁右上角的「後台設定」按鈕輸入，只存在你自己的裝置裡。
-  syncUrl: '',
-  syncToken: '',
+  syncUrl: 'https://script.google.com/macros/s/AKfycbz-PnHGD1bS1tZEc5yOux3akrrUJS1V1M_U4SSCO6n7w6lMKVUP9ChuNsVwpYVayVW3Wg/exec',
+  syncToken: '',        // 密語故意留空：請按右上「後台設定」輸入，只存在你的裝置
 
   psaDataDate: '2026-09',   // PSA 10 存量資料的截止月份
   usdRate: 7.8,             // 匯率（HKD 掛勾，1 USD = 7.8 HKD）
@@ -625,7 +625,7 @@ const App = (() => {
   }
   async function pull(){
     const cfg = syncCfg();
-    if (!cfg.url){ setSync('off','🔴 本機模式'); return; }
+    if (!cfg.url || !cfg.token){ setSync('off','🔴 本機模式'); return; }
     setSync('saving','🟡 讀取雲端…');
     try{
       const r = await fetch(cfg.url + '?action=load&token=' + encodeURIComponent(cfg.token));
@@ -1006,7 +1006,7 @@ const App = (() => {
     document.getElementById('psaDate').textContent = CONFIG.psaDate || CONFIG.psaDataDate;
     document.getElementById('tip').innerHTML = syncCfg().url
       ? '<b>後台：</b>已連接 Google 試算表，改動會自動上傳，下次開頁會自動讀取。按右上「後台設定」可查看或更改。'
-      : '<b>目前是純本機模式：</b>資料存在你自己的瀏覽器，按「下載備份」可存一份 JSON。<br>想跨裝置同步：照 <b>設定教學</b> 第 3 節部署好 Apps Script，再按右上 <b>「後台設定」</b> 貼上網址與密語即可（不必改 GitHub 上的檔案）。';
+      : '<b>目前是純本機模式：</b>資料存在你自己的瀏覽器，按「下載備份」可存一份 JSON。<br>要開啟雲端同步：按右上 <b>「後台設定」</b> 貼上密語即可（後台網址已經幫你填好）。';
     const q = document.getElementById('q');
     let qt = null;
     q.oninput = e => { clearTimeout(qt); qt = setTimeout(() => { ui.q = e.target.value; saveUI(); render(); }, 150); };
