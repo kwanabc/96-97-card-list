@@ -181,6 +181,7 @@ kbd{background:var(--bg-card);border:1px solid var(--border);border-radius:4px;p
       <button class="btn" onclick="App.downloadBackup()">下載備份</button>
       <button class="btn" onclick="document.getElementById('restoreFile').click()">還原備份</button>
       <input type="file" id="restoreFile" accept=".json" style="display:none">
+      <button class="btn" onclick="App.syncDialog()">後台設定</button>
       <button class="btn primary" onclick="App.saveSyncNow()">立即同步</button>
     </div>
   </div>
@@ -239,6 +240,7 @@ kbd{background:var(--bg-card);border:1px solid var(--border);border-radius:4px;p
 </div>
 
 <div class="ov" id="ov"><div class="mod" id="mod"></div></div>
+<div class="ov" id="sov"><div class="mod" id="smod" style="max-width:560px"></div></div>
 
 <script>
 /* =========================================================================
@@ -251,9 +253,10 @@ const CONFIG = {
   imgMode: 'cdn',
   imgLocalPath: 'images/',
 
-  // 後台：把 Google Apps Script 的 Web App 網址貼在下面（沒填＝純本機模式，一樣可用）
+  // 後台：建議「不要」寫在這裡（這份網頁是公開的，寫在這裡全世界都看得到）。
+  //  請改用網頁右上角的「後台設定」按鈕輸入，只存在你自己的裝置裡。
   syncUrl: '',
-  syncToken: 'kwan-9697-oldback-261',   // 已幫你先填好；要改就跟 Code.gs 的 TOKEN 一起改
+  syncToken: '',
 
   psaDataDate: '2026-09',   // PSA 10 存量資料的截止月份
   usdRate: 7.8,             // 匯率（HKD 掛勾，1 USD = 7.8 HKD）
@@ -542,7 +545,7 @@ const SETS = {
 };
 const TYPES = ['Grass','Grass/Poison','Fire','Water','Lightning','Psychic','Fighting','Colorless','Trainer','Energy'];
 const RARITIES = [['Common ●','r-common'],['Uncommon ◆','r-uncommon'],['Rare','r-rare'],['Holo Rare ★','r-holo']];
-const LS = {inv:'tcg96_inv_v1', ui:'tcg96_ui_v1', back:'tcg96_backup_v1'};
+const LS = {inv:'tcg96_inv_v1', ui:'tcg96_ui_v1', back:'tcg96_backup_v1', sync:'tcg96_sync_v1'};
 
 const App = (() => {
   const key = c => c.set + '_' + c.no;
@@ -606,16 +609,26 @@ const App = (() => {
   }
 
   /* ---------- 後台同步（Google Apps Script） ---------- */
+  function syncCfg(){                        // 網址與密語：以「這台裝置的設定」優先，其次才是檔案裡的 CONFIG
+    let local = {};
+    try { local = JSON.parse(localStorage.getItem(LS.sync) || '{}') || {}; } catch(e){}
+    return { url:(local.url || CONFIG.syncUrl || '').trim(),
+             token:(local.token || CONFIG.syncToken || '').trim() };
+  }
+  function setSyncCfg(url, token){
+    localStorage.setItem(LS.sync, JSON.stringify({url:(url||'').trim(), token:(token||'').trim()}));
+  }
   function setSync(state, txt){
     syncState = state;
     const b = document.getElementById('syncBadge');
     b.className = state; b.textContent = txt;
   }
   async function pull(){
-    if (!CONFIG.syncUrl){ setSync('off','🔴 本機模式'); return; }
+    const cfg = syncCfg();
+    if (!cfg.url){ setSync('off','🔴 本機模式'); return; }
     setSync('saving','🟡 讀取雲端…');
     try{
-      const r = await fetch(CONFIG.syncUrl + '?action=load&token=' + encodeURIComponent(CONFIG.syncToken));
+      const r = await fetch(cfg.url + '?action=load&token=' + encodeURIComponent(cfg.token));
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'load failed');
       Object.keys(j.inventory || {}).forEach(k => {
@@ -627,17 +640,18 @@ const App = (() => {
     }catch(e){ console.warn(e); setSync('off','🟠 讀取失敗，用本機資料'); }
   }
   async function push(force){
-    if (!CONFIG.syncUrl) return;
+    const cfg = syncCfg();
+    if (!cfg.url) return;
     const keys = Object.keys(dirty);
     if (!keys.length && !force) return;
     const changes = {};
     keys.forEach(k => changes[k] = dirty[k]);
     setSync('saving','🟡 儲存中…');
     try{
-      const r = await fetch(CONFIG.syncUrl, {
+      const r = await fetch(cfg.url, {
         method:'POST',
         headers:{'Content-Type':'text/plain;charset=utf-8'},   // 避開 preflight，Apps Script 才收得到
-        body: JSON.stringify({token:CONFIG.syncToken, changes})
+        body: JSON.stringify({token:cfg.token, changes})
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'save failed');
@@ -889,6 +903,59 @@ const App = (() => {
     ov.classList.add('on');
   }
   function closeModal(){ document.getElementById('ov').classList.remove('on'); render(); }
+  /* ---------- 後台設定視窗 ---------- */
+  function syncDialog(){
+    const cfg = syncCfg();
+    const mod = document.getElementById('smod');
+    mod.innerHTML = `
+      <div class="top" style="display:block">
+        <button class="x" onclick="App.closeSyncDialog()">✕</button>
+        <h2>後台設定（Google 試算表）</h2>
+        <p style="color:var(--muted);font-size:.82rem;margin-top:.4rem;line-height:1.7">
+          把 Apps Script 部署後拿到的 <b>/exec 網址</b> 和你在 <b>Code.gs</b> 設定的密語填在下面。<br>
+          設定只會存在<b>這台裝置的瀏覽器</b>裡，不會寫進公開的網頁檔案，所以別人不會拿到你的後台。
+          <br>（同一個網址＋密語，在手機或其他電腦各填一次即可跨裝置同步。）
+        </p>
+      </div>
+      <div class="frm" style="grid-template-columns:1fr">
+        <div class="fld"><label>後台網址（結尾是 /exec）</label>
+          <input id="syncUrlIn" type="url" placeholder="https://script.google.com/macros/s/AKfy…/exec" value="${(cfg.url||'').replace(/"/g,'&quot;')}"></div>
+        <div class="fld"><label>密語（要與 Code.gs 的 TOKEN 完全一樣）</label>
+          <input id="syncTokIn" type="text" placeholder="例：kwan-96-oldback-8899" value="${(cfg.token||'').replace(/"/g,'&quot;')}"></div>
+        <div class="fld"><label>狀態</label>
+          <div class="stat" id="sstat">${cfg.url ? '目前已設定後台：' + (cfg.url.length>44 ? cfg.url.slice(0,44)+'…' : cfg.url) : '目前是純本機模式（資料只在這台裝置）'}</div></div>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <button class="btn primary" onclick="App.syncSave(true)">儲存並同步</button>
+          <button class="btn" onclick="App.syncSave(false)">只測試連線</button>
+          <button class="btn" onclick="App.syncClear()">清除（回本機模式）</button>
+        </div>
+      </div>`;
+    document.getElementById('sov').classList.add('on');
+  }
+  function closeSyncDialog(){ document.getElementById('sov').classList.remove('on'); }
+  function sstat(msg, color){ const s = document.getElementById('sstat'); if (s){ s.innerHTML = msg; s.style.color = color || ''; } }
+  async function syncSave(doSync){
+    const url = document.getElementById('syncUrlIn').value.trim();
+    const token = document.getElementById('syncTokIn').value.trim();
+    if (!url){ sstat('請先貼上後台網址。', '#fcd34d'); return; }
+    setSyncCfg(url, token);
+    sstat('測試中…');
+    try{
+      const r = await fetch(url + '?action=ping');
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'ping 失敗');
+      sstat('✅ 後台有回應：' + (j.msg || 'OK') + '。' + (doSync ? '正在同步資料…' : ''), '#6ee7b7');
+    }catch(e){
+      sstat('❌ 連不上或回應不正確：' + e.message + '<br>請確認網址是 /exec 結尾、部署時「存取權」選了「任何人」。', '#fb7185');
+      return;
+    }
+    if (doSync){ await pull(); await push(false); render(); sstat('✅ 已同步完成。', '#6ee7b7'); }
+  }
+  function syncClear(){
+    localStorage.removeItem('tcg96_sync_v1');
+    setSync('off','🔴 本機模式');
+    sstat('已清除，回到本機模式（資料仍在你這台裝置）。', '#fcd34d');
+  }
   function saveSyncNow(){ push(true); }
 
   /* ---------- 備份 / 匯出 ---------- */
@@ -937,9 +1004,9 @@ const App = (() => {
     load();
     if (!Object.keys(inv).length){ CARDS.forEach(c => blank(key(c))); }   // 第一次使用：建立空資料
     document.getElementById('psaDate').textContent = CONFIG.psaDate || CONFIG.psaDataDate;
-    document.getElementById('tip').innerHTML = CONFIG.syncUrl
-      ? '<b>後台：</b>已連接 Google 試算表，改動會自動上傳，並在你下次開頁時自動讀取。'
-      : '<b>目前是純本機模式：</b>資料存在你自己的瀏覽器，按「下載備份」可存一份 JSON。想跨裝置同步，請照 <b>設定教學</b> 連接 Google 試算表，再把網址和密語填進檔案最上方的 <b>CONFIG</b>。';
+    document.getElementById('tip').innerHTML = syncCfg().url
+      ? '<b>後台：</b>已連接 Google 試算表，改動會自動上傳，下次開頁會自動讀取。按右上「後台設定」可查看或更改。'
+      : '<b>目前是純本機模式：</b>資料存在你自己的瀏覽器，按「下載備份」可存一份 JSON。<br>想跨裝置同步：照 <b>設定教學</b> 第 3 節部署好 Apps Script，再按右上 <b>「後台設定」</b> 貼上網址與密語即可（不必改 GitHub 上的檔案）。';
     const q = document.getElementById('q');
     let qt = null;
     q.oninput = e => { clearTimeout(qt); qt = setTimeout(() => { ui.q = e.target.value; saveUI(); render(); }, 150); };
@@ -948,9 +1015,10 @@ const App = (() => {
     document.getElementById('undoBtn').onclick = undo;
     document.getElementById('restoreFile').onchange = e => { if (e.target.files[0]) restoreFile(e.target.files[0]); e.target.value=''; };
     document.getElementById('ov').onclick = e => { if (e.target.id === 'ov') closeModal(); };
+    document.getElementById('sov').onclick = e => { if (e.target.id === 'sov') closeSyncDialog(); };
     document.onkeydown = e => {
       if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA'){ e.preventDefault(); q.focus(); }
-      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Escape'){ closeModal(); closeSyncDialog(); }
       if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); undo(); }
     };
     render();
@@ -961,7 +1029,8 @@ const App = (() => {
   document.addEventListener('DOMContentLoaded', init);
 
   return {price, count, field, fieldInput: field, setCountInput: setCount, closeModal, imgFallback,
-          exportCSV, downloadBackup, saveSyncNow, refreshModalStat};
+          exportCSV, downloadBackup, saveSyncNow, refreshModalStat,
+          syncDialog, closeSyncDialog, syncSave, syncClear};
 })();
 </script>
 </body>
