@@ -553,6 +553,11 @@ const App = (() => {
   let undoStack = [], lastSave = 0, saveTimer = null, syncState = 'off';
 
   /* ---------- 圖片網址 ---------- */
+  function imgFallback(img, url){            // 日文圖載入失敗時自動退回英文圖
+    if (img.dataset.fb){ img.style.opacity = .18; return; }
+    img.dataset.fb = '1';
+    img.src = url;
+  }
   function imgUrl(c){
     if (c.noJp || CONFIG.imgMode === 'en') return c.enImg;
     if (CONFIG.imgMode === 'local') return CONFIG.imgLocalPath + c.img.split('/').pop();
@@ -714,7 +719,8 @@ const App = (() => {
     el.id = 'c_' + key(c);
     el.innerHTML = `
       <div class="imgbox" data-open="1">
-        <img src="${imgUrl(c)}" alt="${c.en}" loading="lazy" decoding="async" width="356" height="510">
+        <img src="${imgUrl(c)}" alt="${c.en}" loading="lazy" decoding="async" width="356" height="510"
+             referrerpolicy="no-referrer" onerror="App.imgFallback(this,'${c.enImg}')">
         <div class="glow"></div>
         ${it.count ? `<div class="flag own">×${it.count} 已入手</div>` : ''}
         ${c.noJp ? `<div class="flag nj" style="left:auto;right:.35rem" title="日版第1弾沒有收錄此卡">日版未收錄</div>` : ''}
@@ -845,7 +851,7 @@ const App = (() => {
     mod.innerHTML = `
       <div class="top">
         <button class="x" onclick="App.closeModal()">✕</button>
-        <div class="pic"><img src="${bigUrl(c)}" alt="${c.en}"></div>
+        <div class="pic"><img src="${bigUrl(c)}" alt="${c.en}" referrerpolicy="no-referrer" onerror="App.imgFallback(this,'${c.enImg}')"></div>
         <div class="det">
           <h2>${c.en} <span class="jp2">${c.jp}</span></h2>
           <div class="line1">
@@ -954,7 +960,7 @@ const App = (() => {
   }
   document.addEventListener('DOMContentLoaded', init);
 
-  return {price, count, field, fieldInput: field, setCountInput: setCount, closeModal,
+  return {price, count, field, fieldInput: field, setCountInput: setCount, closeModal, imgFallback,
           exportCSV, downloadBackup, saveSyncNow, refreshModalStat};
 })();
 </script>
