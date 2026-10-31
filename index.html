@@ -181,7 +181,7 @@ kbd{background:var(--bg-card);border:1px solid var(--border);border-radius:4px;p
       <button class="btn" onclick="App.downloadBackup()">下載備份</button>
       <button class="btn" onclick="document.getElementById('restoreFile').click()">還原備份</button>
       <input type="file" id="restoreFile" accept=".json" style="display:none">
-      <button class="btn" onclick="App.syncDialog()">後台設定</button>
+      <button class="btn" onclick="App.syncDialog()">雲端同步設定</button>
       <button class="btn primary" onclick="App.saveSyncNow()">立即同步</button>
     </div>
   </div>
@@ -203,8 +203,8 @@ kbd{background:var(--bg-card);border:1px solid var(--border);border-radius:4px;p
     <h3>稀有度</h3>
     <div class="chips" id="rarChips"></div>
     <div class="tip" id="tip">
-      <b>後台設定</b>：現在資料存在你自己的瀏覽器。想跨裝置同步，請照 <b>設定教學</b> 把 Google 試算表接上，
-      再把網址和密語填進檔案最上方的 <b>CONFIG</b> 即可。
+      <b>雲端同步設定</b>：資料只存在你自己的瀏覽器。想跨裝置同步，按右上「雲端同步設定」貼上
+      GitHub 授權碼即可（資料庫與檔名已幫你填好）。
     </div>
   </aside>
 
@@ -235,7 +235,7 @@ kbd{background:var(--bg-card);border:1px solid var(--border);border-radius:4px;p
 <div class="foot-note">
   資料來源：卡片基本資料取自 <a href="https://tcgdex.dev/" target="_blank" rel="noopener noreferrer">TCGdex</a>（日文官方卡名、插畫家），
   PSA 10 存量為你記錄的數字（資料截止 <b id="psaDate">—</b>），卡圖為日文版卡面。
-  本頁沒有任何第三方登入或追蹤；收藏資料只存在你的瀏覽器與你自己的 Google 試算表。
+  本頁沒有任何第三方登入或追蹤；收藏資料只存在你的瀏覽器與你自己的 GitHub 私人資料庫（<b>kwanabc/finance-vault</b>）。
   <br>快捷鍵：<kbd>/</kbd> 搜尋、<kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤銷、<kbd>Esc</kbd> 關閉視窗。
 </div>
 
@@ -253,10 +253,13 @@ const CONFIG = {
   imgMode: 'cdn',
   imgLocalPath: 'images/',
 
-  // 後台：建議「不要」寫在這裡（這份網頁是公開的，寫在這裡全世界都看得到）。
-  //  請改用網頁右上角的「後台設定」按鈕輸入，只存在你自己的裝置裡。
-  syncUrl: 'https://script.google.com/macros/s/AKfycbz-PnHGD1bS1tZEc5yOux3akrrUJS1V1M_U4SSCO6n7w6lMKVUP9ChuNsVwpYVayVW3Wg/exec',
-  syncToken: '',        // 密語故意留空：請按右上「後台設定」輸入，只存在你的裝置
+  // 雲端同步（GitHub 私人資料庫）預設值。
+  //  授權碼「不要」寫在這裡（這份網頁是公開的，寫進來全世界都看得到）。
+  //  請按網頁右上角的「雲端同步設定」輸入授權碼，只存在你自己的裝置裡。
+  //  三個網站（貸款追蹤 / PokéVault Pro / 本頁）共用同一組授權碼。
+  syncRepo: 'kwanabc/finance-vault',   // 資料庫（owner/repo）
+  syncPath: '96-97-card-list.json',    // 收藏紀錄存在這個檔案
+  syncToken: '',        // 授權碼故意留空：請按右上「雲端同步設定」輸入，只存在你的裝置
 
   psaDataDate: '2026-09',   // PSA 10 存量資料的截止月份
   usdRate: 7.8,             // 匯率（HKD 掛勾，1 USD = 7.8 HKD）
@@ -545,7 +548,7 @@ const SETS = {
 };
 const TYPES = ['Grass','Grass/Poison','Fire','Water','Lightning','Psychic','Fighting','Colorless','Trainer','Energy'];
 const RARITIES = [['Common ●','r-common'],['Uncommon ◆','r-uncommon'],['Rare','r-rare'],['Holo Rare ★','r-holo']];
-const LS = {inv:'tcg96_inv_v1', ui:'tcg96_ui_v1', back:'tcg96_backup_v1', sync:'tcg96_sync_v1'};
+const LS = {inv:'tcg96_inv_v1', ui:'tcg96_ui_v1', back:'tcg96_backup_v1', sync:'tcg96_sync_v1', tok:'hermes_sync_token_v1'};
 
 const App = (() => {
   const key = c => c.set + '_' + c.no;
@@ -573,7 +576,11 @@ const App = (() => {
   }
 
   /* ---------- 資料 ---------- */
-  function blank(k){ inv[k] = {priceHKD:0, count:0, costHKD:0, note:'', u:Date.now()}; }
+  function blank(k){ inv[k] = {priceHKD:0, count:0, costHKD:0, note:'', u:0}; }   // u=0 表示「本機未曾編輯過」，合併時雲端資料會優先
+  function hasAnyData(){                       // 有沒有「不是空的」紀錄（用來判斷要不要自動上傳）
+    return Object.keys(inv).some(k => { const v = inv[k] || {};
+      return (v.count||0) > 0 || (v.priceHKD||0) > 0 || (v.costHKD||0) > 0 || String(v.note||'').trim() !== ''; });
+  }
   function get(c){ const k = key(c); if(!inv[k]) blank(k); return inv[k]; }
   function load(){
     try { inv = JSON.parse(localStorage.getItem(LS.inv) || '{}') || {}; } catch(e){ inv = {}; }
@@ -608,15 +615,96 @@ const App = (() => {
     }catch(e){}
   }
 
-  /* ---------- 後台同步（Google Apps Script） ---------- */
-  function syncCfg(){                        // 網址與密語：以「這台裝置的設定」優先，其次才是檔案裡的 CONFIG
+  /* ---------- 雲端同步（GitHub 私人資料庫） ---------- */
+  const SYNC_API = 'https://api.github.com/repos/';
+  let cloudMissing = false;                  // 雲端還沒有檔案（第一次同步）
+  function syncCfg(){                        // 授權碼：以「這台裝置的設定」優先，其次才是檔案裡的 CONFIG
     let local = {};
     try { local = JSON.parse(localStorage.getItem(LS.sync) || '{}') || {}; } catch(e){}
-    return { url:(local.url || CONFIG.syncUrl || '').trim(),
-             token:(local.token || CONFIG.syncToken || '').trim() };
+    let shared = '';
+    try { shared = localStorage.getItem(LS.tok) || ''; } catch(e){}
+    const off = !!local.off;
+    return { repo:(local.repo || CONFIG.syncRepo || '').trim(),
+             path:(local.path || CONFIG.syncPath || '').trim(),
+             off:off,
+             token:(off ? '' : (local.token || shared || CONFIG.syncToken || '').trim()) };
   }
-  function setSyncCfg(url, token){
-    localStorage.setItem(LS.sync, JSON.stringify({url:(url||'').trim(), token:(token||'').trim()}));
+  function setSyncCfg(repo, path, token){
+    try{
+      localStorage.setItem(LS.sync, JSON.stringify({repo:(repo||'').trim(), path:(path||'').trim(), off:false}));
+      if (token && token.trim()) localStorage.setItem(LS.tok, token.trim());   // 與另外兩個網站共用同一組授權碼
+    }catch(e){}
+  }
+  function deviceId(){
+    let d = '';
+    try{ d = localStorage.getItem('hermes_sync_device_v1') || ''; }catch(e){}
+    if (!d){ d = '電腦-' + Math.random().toString(36).slice(2,6).toUpperCase();
+             try{ localStorage.setItem('hermes_sync_device_v1', d); }catch(e){} }
+    return d;
+  }
+  function b64ToUtf8(b){ return new TextDecoder().decode(Uint8Array.from(atob(String(b).replace(/\s/g,'')), c => c.charCodeAt(0))); }
+  function utf8ToB64(s){ const bytes = new TextEncoder().encode(s); let bin = ''; bytes.forEach(x => { bin += String.fromCharCode(x); }); return btoa(bin); }
+  function ghHeaders(extra){
+    const h = { Authorization:'Bearer ' + syncCfg().token, Accept:'application/vnd.github+json' };
+    if (extra) Object.assign(h, extra);
+    return h;
+  }
+  function ghErr(code, body){
+    if (code === 401) return '授權碼無效或已過期（401）：請重新產生一組授權碼';
+    if (code === 403) return '授權碼權限不足（403）：Permissions 的 Contents 要設成 Read and write';
+    if (code === 404) return '這組授權碼看不到資料庫 ' + syncCfg().repo + '（404）：產生授權碼時要在 Repository access 勾選它';
+    if (code === 409 || code === 422) return '雲端版本衝突（' + code + '）：請再按一次同步';
+    return 'GitHub 回應錯誤（HTTP ' + code + '）：' + String(body||'').replace(/\s+/g,' ').slice(0,120);
+  }
+  function validRec(k, v){                   // 只接受格式正確的紀錄，壞資料一律跳過
+    if (!/^(base|jungle|fossil|rocket)_\d+$/.test(k)) return null;
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    const n = x => { const y = Number(x); return isFinite(y) ? y : 0; };
+    return { priceHKD:n(v.priceHKD), count:n(v.count), costHKD:n(v.costHKD),
+             note:String(v.note == null ? '' : v.note).slice(0,500), u:n(v.u) };
+  }
+  async function ghGet(){                    // 讀雲端檔案；檔案不存在回 {missing:true}
+    const cfg = syncCfg();
+    if (!cfg.token) throw new Error('尚未輸入授權碼');
+    const url = SYNC_API + cfg.repo + '/contents/' + encodeURIComponent(cfg.path) + '?ref=main&t=' + Date.now();
+    const r = await fetch(url, { headers: ghHeaders(), cache:'no-store' });
+    if (r.status === 404) return { missing:true };
+    if (!r.ok) throw new Error(ghErr(r.status, await r.text()));
+    const j = await r.json();
+    let env = null;
+    try { env = JSON.parse(b64ToUtf8(j.content || '')); } catch(e){ env = null; }
+    return { sha:j.sha, env:env };
+  }
+  async function ghPut(inventory, sha){      // 寫回雲端（整份檔案）
+    const cfg = syncCfg();
+    const env = { app:'96-97-card-list', version:1, updatedAt:new Date().toISOString(),
+                  device:deviceId(), payload:{ inventory:inventory } };
+    const body = { message:'sync(96-97 卡表): ' + new Date().toLocaleString('zh-TW',{hour12:false}) + ' @ ' + deviceId(),
+                   content: utf8ToB64(JSON.stringify(env, null, 2)), branch:'main' };
+    if (sha) body.sha = sha;
+    const r = await fetch(SYNC_API + cfg.repo + '/contents/' + encodeURIComponent(cfg.path), {
+      method:'PUT', headers: ghHeaders({'Content-Type':'application/json'}), body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(ghErr(r.status, await r.text()));
+    return await r.json();
+  }
+  async function diagnose(){                 // 給「只測試連線」與錯誤訊息用
+    const cfg = syncCfg(); const out = [];
+    try{
+      const ru = await fetch('https://api.github.com/user', { headers: ghHeaders(), cache:'no-store' });
+      if (ru.ok){ const u = await ru.json();
+        out.push('✅ 授權碼帳號：' + u.login + (u.login === (cfg.repo.split('/')[0]||'') ? '（正確）' : '（⚠️ 與資料庫擁有者不同）'));
+      } else out.push('❌ 授權碼無法讀取帳號資訊（HTTP ' + ru.status + '）→ 可能已過期或被刪除');
+    }catch(e){ out.push('❌ 無法連線到 GitHub，請檢查網路'); }
+    try{
+      const rr = await fetch('https://api.github.com/repos/' + cfg.repo, { headers: ghHeaders(), cache:'no-store' });
+      if (rr.ok){ const j = await rr.json(); const w = !!(j.permissions && j.permissions.push);
+        out.push('✅ 資料庫 ' + j.full_name + '：' + (j.private ? '私人' : '公開') + '・' + (w ? '可寫入' : '只有讀取權'));
+        if (!w) out.push('❌ 授權碼的 Permissions → Contents 要設成 Read and write');
+      } else if (rr.status === 404){
+        out.push('❌ 這組授權碼看不到 ' + cfg.repo + '（404）→ 授權碼的 Repository access 要勾選它');
+      } else out.push('❌ 讀取資料庫資訊失敗（HTTP ' + rr.status + '）');
+    }catch(e){}
+    return out;
   }
   function setSync(state, txt){
     syncState = state;
@@ -625,39 +713,51 @@ const App = (() => {
   }
   async function pull(){
     const cfg = syncCfg();
-    if (!cfg.url || !cfg.token){ setSync('off','🔴 本機模式'); return; }
+    if (!cfg.repo || !cfg.token){ setSync('off','🔴 本機模式'); return; }
     setSync('saving','🟡 讀取雲端…');
     try{
-      const r = await fetch(cfg.url + '?action=load&token=' + encodeURIComponent(cfg.token));
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error || 'load failed');
-      Object.keys(j.inventory || {}).forEach(k => {
-        const cloud = j.inventory[k], local = inv[k];
-        if (!local || (cloud.u||0) > (local.u||0)) inv[k] = cloud;
+      const res = await ghGet();
+      if (res.missing){ cloudMissing = true; setSync('live','🟢 已連線（雲端尚無資料）'); return; }
+      const cloud = (res.env && res.env.payload && res.env.payload.inventory) || null;
+      if (!cloud || typeof cloud !== 'object' || Array.isArray(cloud)) throw new Error('雲端檔案格式不正確');
+      let merged = 0;
+      Object.keys(cloud).forEach(k => {                  // 逐張比對 u 時間戳：雲端較新才覆蓋本機
+        const rec = validRec(k, cloud[k]); if (!rec) return;
+        const local = inv[k];
+        if (!local || (rec.u||0) > (local.u||0)){ inv[k] = rec; merged++; }
       });
-      localStorage.setItem(LS.inv, JSON.stringify(inv));
-      setSync('live','🟢 已同步（試算表）');
+      if (merged) localStorage.setItem(LS.inv, JSON.stringify(inv));
+      setSync('live','🟢 已同步（GitHub）');
     }catch(e){ console.warn(e); setSync('off','🟠 讀取失敗，用本機資料'); }
   }
   async function push(force){
     const cfg = syncCfg();
-    if (!cfg.url) return;
+    if (!cfg.repo || !cfg.token) return;
     const keys = Object.keys(dirty);
     if (!keys.length && !force) return;
-    const changes = {};
-    keys.forEach(k => changes[k] = dirty[k]);
     setSync('saving','🟡 儲存中…');
     try{
-      const r = await fetch(cfg.url, {
-        method:'POST',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},   // 避開 preflight，Apps Script 才收得到
-        body: JSON.stringify({token:cfg.token, changes})
-      });
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error || 'save failed');
+      let res = { missing:true };
+      try { res = await ghGet(); } catch(e){ /* 讀不到就直接寫 */ }
+      if (res.env && res.env.payload && res.env.payload.inventory){
+        const cloud = res.env.payload.inventory;         // 先合併雲端，避免蓋掉其他電腦的改動
+        Object.keys(cloud).forEach(k => {
+          const rec = validRec(k, cloud[k]); if (!rec) return;
+          const local = inv[k];
+          if (!local || (rec.u||0) > (local.u||0)) inv[k] = rec;
+        });
+      }
+      try{
+        await ghPut(inv, res.sha);
+      }catch(e){
+        const again = await ghGet();                     // 版本衝突 → 重讀一次再寫
+        await ghPut(inv, again.sha);
+      }
       keys.forEach(k => delete dirty[k]);
-      setSync('live','🟢 已同步（試算表）');
-    }catch(e){ console.warn(e); setSync('off','🟠 儲存失敗，已存在本機'); }
+      cloudMissing = false;
+      localStorage.setItem(LS.inv, JSON.stringify(inv));
+      setSync('live','🟢 已同步（GitHub）');
+    }catch(e){ console.warn(e); setSync('off','🟠 儲存失敗，已存在本機'); sstat('❌ ' + e.message, '#fb7185'); }
   }
   function touch(c){                            // 有改動 → 存本機 + 排程回寫
     const k = key(c); dirty[k] = inv[k];
@@ -906,24 +1006,27 @@ const App = (() => {
   /* ---------- 後台設定視窗 ---------- */
   function syncDialog(){
     const cfg = syncCfg();
+    const hasTok = !!cfg.token;
     const mod = document.getElementById('smod');
     mod.innerHTML = `
       <div class="top" style="display:block">
         <button class="x" onclick="App.closeSyncDialog()">✕</button>
-        <h2>後台設定（Google 試算表）</h2>
+        <h2>雲端同步設定（GitHub 私人資料庫）</h2>
         <p style="color:var(--muted);font-size:.82rem;margin-top:.4rem;line-height:1.7">
-          把 Apps Script 部署後拿到的 <b>/exec 網址</b> 和你在 <b>Code.gs</b> 設定的密語填在下面。<br>
-          設定只會存在<b>這台裝置的瀏覽器</b>裡，不會寫進公開的網頁檔案，所以別人不會拿到你的後台。
-          <br>（同一個網址＋密語，在手機或其他電腦各填一次即可跨裝置同步。）
+          收藏紀錄會存到你的 GitHub <b>私人</b>資料庫 <b>${cfg.repo}</b>，只有你自己登入 GitHub 才看得到。<br>
+          貼上 GitHub 授權碼即可；設定只存在<b>這台裝置的瀏覽器</b>裡，不會寫進公開的網頁檔案。<br>
+          （三個網站共用同一組授權碼，所以你在「貸款追蹤」那邊貼過的，這裡會自動帶入。）
         </p>
       </div>
       <div class="frm" style="grid-template-columns:1fr">
-        <div class="fld"><label>後台網址（結尾是 /exec）</label>
-          <input id="syncUrlIn" type="url" placeholder="https://script.google.com/macros/s/AKfy…/exec" value="${(cfg.url||'').replace(/"/g,'&quot;')}"></div>
-        <div class="fld"><label>密語（要與 Code.gs 的 TOKEN 完全一樣）</label>
-          <input id="syncTokIn" type="text" placeholder="例：kwan-96-oldback-8899" value="${(cfg.token||'').replace(/"/g,'&quot;')}"></div>
+        <div class="fld"><label>GitHub 授權碼 (token)</label>
+          <input id="syncTokIn" type="password" autocomplete="off" placeholder="github_pat_…" value="${hasTok ? '••••••••••••••••（已儲存）' : ''}"></div>
+        <div class="fld"><label>資料庫（owner/repo）</label>
+          <input id="syncRepoIn" type="text" value="${(cfg.repo||'').replace(/"/g,'&quot;')}"></div>
+        <div class="fld"><label>檔案名稱</label>
+          <input id="syncPathIn" type="text" value="${(cfg.path||'').replace(/"/g,'&quot;')}"></div>
         <div class="fld"><label>狀態</label>
-          <div class="stat" id="sstat">${cfg.url ? '目前已設定後台：' + (cfg.url.length>44 ? cfg.url.slice(0,44)+'…' : cfg.url) : '目前是純本機模式（資料只在這台裝置）'}</div></div>
+          <div class="stat" id="sstat">${cfg.token ? '目前已設定：' + cfg.repo + ' / ' + cfg.path : '目前是純本機模式（資料只在這台裝置）'}</div></div>
         <div style="display:flex;gap:.4rem;flex-wrap:wrap">
           <button class="btn primary" onclick="App.syncSave(true)">儲存並同步</button>
           <button class="btn" onclick="App.syncSave(false)">只測試連線</button>
@@ -935,26 +1038,27 @@ const App = (() => {
   function closeSyncDialog(){ document.getElementById('sov').classList.remove('on'); }
   function sstat(msg, color){ const s = document.getElementById('sstat'); if (s){ s.innerHTML = msg; s.style.color = color || ''; } }
   async function syncSave(doSync){
-    const url = document.getElementById('syncUrlIn').value.trim();
-    const token = document.getElementById('syncTokIn').value.trim();
-    if (!url){ sstat('請先貼上後台網址。', '#fcd34d'); return; }
-    setSyncCfg(url, token);
-    sstat('測試中…');
-    try{
-      const r = await fetch(url + '?action=ping');
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error || 'ping 失敗');
-      sstat('✅ 後台有回應：' + (j.msg || 'OK') + '。' + (doSync ? '正在同步資料…' : ''), '#6ee7b7');
-    }catch(e){
-      sstat('❌ 連不上或回應不正確：' + e.message + '<br>請確認網址是 /exec 結尾、部署時「存取權」選了「任何人」。', '#fb7185');
-      return;
+    const repo = document.getElementById('syncRepoIn').value.trim();
+    const path = document.getElementById('syncPathIn').value.trim();
+    let token = document.getElementById('syncTokIn').value.trim();
+    if (token.indexOf('••') === 0) token = '';              // 欄位沒改動 → 沿用已儲存的授權碼
+    if (!repo || !path){ sstat('請填「資料庫」與「檔案名稱」。', '#fcd34d'); return; }
+    setSyncCfg(repo, path, token);
+    if (!syncCfg().token){ sstat('請先貼上 GitHub 授權碼。', '#fcd34d'); return; }
+    sstat('測試連線中…');
+    const lines = await diagnose();
+    const bad = lines.some(l => l.indexOf('❌') === 0);
+    sstat(lines.map(l => l.replace(/</g,'&lt;')).join('<br>'), bad ? '#fb7185' : '#6ee7b7');
+    if (bad) return;
+    if (doSync){
+      await pull(); await push(true); render();
+      sstat('✅ 已同步完成。<br>檔案：' + syncCfg().repo + ' / ' + syncCfg().path, '#6ee7b7');
     }
-    if (doSync){ await pull(); await push(false); render(); sstat('✅ 已同步完成。', '#6ee7b7'); }
   }
   function syncClear(){
-    localStorage.removeItem('tcg96_sync_v1');
+    try{ localStorage.setItem(LS.sync, JSON.stringify({repo:CONFIG.syncRepo, path:CONFIG.syncPath, off:true})); }catch(e){}
     setSync('off','🔴 本機模式');
-    sstat('已清除，回到本機模式（資料仍在你這台裝置）。', '#fcd34d');
+    sstat('已清除，回到本機模式（資料仍在你這台裝置；共用的授權碼保留給另外兩個網站使用）。', '#fcd34d');
   }
   function saveSyncNow(){ push(true); }
 
@@ -1004,9 +1108,9 @@ const App = (() => {
     load();
     if (!Object.keys(inv).length){ CARDS.forEach(c => blank(key(c))); }   // 第一次使用：建立空資料
     document.getElementById('psaDate').textContent = CONFIG.psaDate || CONFIG.psaDataDate;
-    document.getElementById('tip').innerHTML = syncCfg().url
-      ? '<b>後台：</b>已連接 Google 試算表，改動會自動上傳，下次開頁會自動讀取。按右上「後台設定」可查看或更改。'
-      : '<b>目前是純本機模式：</b>資料存在你自己的瀏覽器，按「下載備份」可存一份 JSON。<br>要開啟雲端同步：按右上 <b>「後台設定」</b> 貼上密語即可（後台網址已經幫你填好）。';
+    document.getElementById('tip').innerHTML = syncCfg().token
+      ? '<b>雲端同步：</b>已連接 GitHub 私人資料庫 <b>' + syncCfg().repo + '</b>，改動會自動上傳，下次開頁會自動讀取。按右上「雲端同步設定」可查看或更改。'
+      : '<b>目前是純本機模式：</b>資料存在你自己的瀏覽器，按「下載備份」可存一份 JSON。<br>要開啟雲端同步：按右上 <b>「雲端同步設定」</b> 貼上 GitHub 授權碼即可（資料庫與檔名已經幫你填好）。';
     const q = document.getElementById('q');
     let qt = null;
     q.oninput = e => { clearTimeout(qt); qt = setTimeout(() => { ui.q = e.target.value; saveUI(); render(); }, 150); };
@@ -1022,7 +1126,11 @@ const App = (() => {
       if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); undo(); }
     };
     render();
-    pull().then(() => { render(); });
+    pull().then(() => {
+      render();
+      // 第一次同步（雲端還沒有檔案）而本機已有收藏 → 自動上傳一次
+      if (cloudMissing && hasAnyData()) push(true);
+    });
     setInterval(() => push(false), 30000);          // 每 30 秒把未上傳的改動補送一次
     window.addEventListener('beforeunload', () => { try{ localStorage.setItem(LS.inv, JSON.stringify(inv)); }catch(e){} });
   }
