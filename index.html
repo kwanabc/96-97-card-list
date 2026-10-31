@@ -624,10 +624,13 @@ const App = (() => {
     let shared = '';
     try { shared = localStorage.getItem(LS.tok) || ''; } catch(e){}
     const off = !!local.off;
+    const looksGh = t => /^(github_pat_|ghp_|gho_|ghs_|ghu_)/.test(t) || /^[0-9a-f]{40}$/.test(t);
+    let stored = String(local.token || '').trim();
+    if (stored && !looksGh(stored)) stored = '';   // 舊版留下的 Google 試算表密語 → 不當成 GitHub 授權碼
     return { repo:(local.repo || CONFIG.syncRepo || '').trim(),
              path:(local.path || CONFIG.syncPath || '').trim(),
              off:off,
-             token:(off ? '' : (local.token || shared || CONFIG.syncToken || '').trim()) };
+             token:(off ? '' : (stored || shared || CONFIG.syncToken || '').trim()) };
   }
   function setSyncCfg(repo, path, token){
     try{
